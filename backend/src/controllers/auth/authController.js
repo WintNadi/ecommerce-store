@@ -1,19 +1,47 @@
 import crypto from 'crypto';
+import jwt from 'jsonwebtoken';
 import User from '../../models/User.js';
-import RefreshToken from '../../models/RefreshToken.js';
-import { generateTokens, verifyRefreshToken } from '../../utils/generateToken.js';
-import { 
-  sendWelcomeEmail, 
+import { generateTokens } from '../../utils/generateToken.js';
+import {
+  sendWelcomeEmail,
   sendPasswordResetEmail,
-  sendVerificationEmail 
+  sendVerificationEmail
 } from '../../utils/emailService.js';
 
-// @desc    Register user
-// @route   POST /api/auth/register
-// @access  Public
+// ============================================
+// HELPER FUNCTIONS
+// ============================================
+
+const setTokenCookies = (res, accessToken, refreshToken) => {
+  const isProduction = process.env.NODE_ENV === 'production';
+
+  res.cookie('accessToken', accessToken, {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: 'strict',
+    maxAge: 15 * 60 * 1000 // 15 minutes
+  });
+
+  res.cookie('refreshToken', refreshToken, {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: 'strict',
+    maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
+  });
+};
+
+// ============================================
+// REGISTER
+// ============================================
+
+/**
+ * @desc    Register user with role selection
+ * @route   POST /api/auth/register
+ * @access  Public
+ */
 export const register = async (req, res) => {
   try {
-    const { name, email, password, phone } = req.body;
+    const { name, email, password, phone, role } = req.body;
 
     // Check if user exists
     const existingUser = await User.findOne({ email });
@@ -24,43 +52,51 @@ export const register = async (req, res) => {
       });
     }
 
+    // ✅ Admin role ကို Register ကနေ မဖန်တီးနိုင်အောင် ကာကွယ်ပါ
+    const allowedRoles = ['user', 'seller'];
+    const userRole = allowedRoles.includes(role) ? role : 'user';
+    
+    // ❌ Admin ကို Register ကနေ မဖန်တီးနိုင်ပါ
+    if (role === 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Admin accounts cannot be created through registration'
+      });
+    }
+
     // Create user
     const user = await User.create({
       name,
       email,
       password,
-      phone
+      phone,
+      role: userRole
     });
 
     // Generate verification token
-    const verifyToken = user.getVerificationToken();
+    const verifyToken = crypto.randomBytes(32).toString('hex');
+    user.verificationToken = crypto
+      .createHash('sha256')
+      .update(verifyToken)
+      .digest('hex');
+    user.verificationTokenExpire = Date.now() + 24 * 60 * 60 * 1000; // 24 hours
     await user.save({ validateBeforeSave: false });
 
-    // Send verification email (don't await, fire and forget)
+    // Send verification email
     sendVerificationEmail(user, verifyToken).catch(console.error);
 
     // Generate tokens
     const { accessToken, refreshToken } = generateTokens(user);
 
-    // Store refresh token
-    const refreshTokenDoc = new RefreshToken({
-      token: refreshToken,
-      userId: user._id,
-      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-      userAgent: req.headers['user-agent'],
-      ipAddress: req.ip
-    });
-    await refreshTokenDoc.save();
-
-    // Send welcome email (fire and forget)
-    sendWelcomeEmail(user).catch(console.error);
-
     // Set cookies
     setTokenCookies(res, accessToken, refreshToken);
 
+    // Send welcome email
+    sendWelcomeEmail(user).catch(console.error);
+
     res.status(201).json({
       success: true,
-      message: 'User registered successfully. Please verify your email.',
+      message: `User registered successfully as ${userRole}. Please verify your email.`,
       data: {
         user: {
           id: user._id,
@@ -82,14 +118,19 @@ export const register = async (req, res) => {
   }
 };
 
-// @desc    Login user
-// @route   POST /api/auth/login
-// @access  Public
+// ============================================
+// LOGIN
+// ============================================
+
+/**
+ * @desc    Login user with role-based response
+ * @route   POST /api/auth/login
+ * @access  Public
+ */
 export const login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // Validate input
     if (!email || !password) {
       return res.status(400).json({
         success: false,
@@ -97,7 +138,6 @@ export const login = async (req, res) => {
       });
     }
 
-    // Find user with password field
     const user = await User.findOne({ email }).select('+password');
 
     if (!user) {
@@ -107,62 +147,38 @@ export const login = async (req, res) => {
       });
     }
 
-    // Check if account is locked
     if (user.isLocked()) {
-      const lockTime = Math.ceil((user.lockUntil - Date.now()) / 1000 / 60);
+      const lockTime = user.getLockTimeRemaining();
       return res.status(401).json({
         success: false,
         message: `Account is locked. Please try again in ${lockTime} minutes.`
       });
     }
 
-    // Check password
     const isPasswordMatch = await user.comparePassword(password);
 
     if (!isPasswordMatch) {
-      // Increment login attempts
-      user.loginAttempts += 1;
-      
-      // Lock account after 5 failed attempts
-      if (user.loginAttempts >= 5) {
-        user.lockUntil = Date.now() + 30 * 60 * 1000; // Lock for 30 minutes
-        await user.save({ validateBeforeSave: false });
-        
-        return res.status(401).json({
-          success: false,
-          message: 'Too many failed attempts. Account locked for 30 minutes.'
-        });
-      }
-      
-      await user.save({ validateBeforeSave: false });
-      
+      await user.incrementLoginAttempts();
+      const remaining = 5 - user.loginAttempts;
       return res.status(401).json({
         success: false,
-        message: `Invalid credentials. ${5 - user.loginAttempts} attempts remaining.`
+        message: `Invalid credentials. ${remaining} attempts remaining.`
       });
     }
 
-    // Reset login attempts on success
-    user.loginAttempts = 0;
-    user.lockUntil = undefined;
+    await user.resetLoginAttempts();
     user.lastLogin = new Date();
     await user.save({ validateBeforeSave: false });
 
     // Generate tokens
     const { accessToken, refreshToken } = generateTokens(user);
 
-    // Store refresh token
-    const refreshTokenDoc = new RefreshToken({
-      token: refreshToken,
-      userId: user._id,
-      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-      userAgent: req.headers['user-agent'],
-      ipAddress: req.ip
-    });
-    await refreshTokenDoc.save();
-
     // Set cookies
     setTokenCookies(res, accessToken, refreshToken);
+
+    // Role-based response
+    const isAdmin = user.role === 'admin';
+    const isSeller = user.role === 'seller';
 
     res.status(200).json({
       success: true,
@@ -177,7 +193,8 @@ export const login = async (req, res) => {
           profileImage: user.profileImage
         },
         accessToken,
-        refreshToken
+        refreshToken,
+        redirectUrl: isAdmin ? '/admin' : isSeller ? '/seller/dashboard' : '/'
       }
     });
   } catch (error) {
@@ -189,112 +206,17 @@ export const login = async (req, res) => {
   }
 };
 
-// @desc    Refresh token
-// @route   POST /api/auth/refresh-token
-// @access  Public
-export const refreshToken = async (req, res) => {
-  try {
-    const { refreshToken } = req.body;
+// ============================================
+// LOGOUT
+// ============================================
 
-    if (!refreshToken) {
-      return res.status(400).json({
-        success: false,
-        message: 'Refresh token required'
-      });
-    }
-
-    // Verify refresh token
-    const decoded = verifyRefreshToken(refreshToken);
-    if (!decoded) {
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid refresh token'
-      });
-    }
-
-    // Check if token exists in database
-    const tokenDoc = await RefreshToken.findOne({ 
-      token: refreshToken,
-      revoked: false
-    });
-
-    if (!tokenDoc) {
-      return res.status(401).json({
-        success: false,
-        message: 'Refresh token not found or revoked'
-      });
-    }
-
-    // Check if token is expired
-    if (tokenDoc.expiresAt < new Date()) {
-      await RefreshToken.findByIdAndDelete(tokenDoc._id);
-      return res.status(401).json({
-        success: false,
-        message: 'Refresh token expired'
-      });
-    }
-
-    // Get user
-    const user = await User.findById(decoded.id);
-    if (!user) {
-      return res.status(401).json({
-        success: false,
-        message: 'User not found'
-      });
-    }
-
-    // Revoke old refresh token
-    await RefreshToken.findByIdAndUpdate(tokenDoc._id, { revoked: true });
-
-    // Generate new tokens
-    const { accessToken: newAccessToken, refreshToken: newRefreshToken } = generateTokens(user);
-
-    // Store new refresh token
-    const newRefreshTokenDoc = new RefreshToken({
-      token: newRefreshToken,
-      userId: user._id,
-      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-      userAgent: req.headers['user-agent'],
-      ipAddress: req.ip
-    });
-    await newRefreshTokenDoc.save();
-
-    // Set new cookies
-    setTokenCookies(res, newAccessToken, newRefreshToken);
-
-    res.status(200).json({
-      success: true,
-      data: {
-        accessToken: newAccessToken,
-        refreshToken: newRefreshToken
-      }
-    });
-  } catch (error) {
-    console.error('Refresh token error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to refresh token'
-    });
-  }
-};
-
-// @desc    Logout user
-// @route   POST /api/auth/logout
-// @access  Private
+/**
+ * @desc    Logout user
+ * @route   POST /api/auth/logout
+ * @access  Private
+ */
 export const logout = async (req, res) => {
   try {
-    // Get refresh token from request
-    const refreshToken = req.body.refreshToken || req.cookies?.refreshToken;
-
-    if (refreshToken) {
-      // Revoke refresh token
-      await RefreshToken.findOneAndUpdate(
-        { token: refreshToken },
-        { revoked: true }
-      );
-    }
-
-    // Clear cookies
     res.clearCookie('accessToken', {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
@@ -319,9 +241,15 @@ export const logout = async (req, res) => {
   }
 };
 
-// @desc    Get current user profile
-// @route   GET /api/auth/me
-// @access  Private
+// ============================================
+// GET CURRENT USER
+// ============================================
+
+/**
+ * @desc    Get current user profile
+ * @route   GET /api/auth/me
+ * @access  Private
+ */
 export const getMe = async (req, res) => {
   try {
     const user = await User.findById(req.user._id)
@@ -340,20 +268,122 @@ export const getMe = async (req, res) => {
   }
 };
 
-// @desc    Verify email
-// @route   GET /api/auth/verify-email/:token
-// @access  Public
+// ============================================
+// UPDATE PROFILE
+// ============================================
+
+/**
+ * @desc    Update user profile
+ * @route   PUT /api/auth/profile
+ * @access  Private
+ */
+export const updateProfile = async (req, res) => {
+  try {
+    const { name, phone, bio, preferences } = req.body;
+
+    const user = await User.findById(req.user._id);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    if (name) user.name = name;
+    if (phone) user.phone = phone;
+    if (bio) user.bio = bio;
+    if (preferences) {
+      user.preferences = { ...user.preferences, ...preferences };
+    }
+
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Profile updated successfully',
+      data: user
+    });
+  } catch (error) {
+    console.error('Update profile error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update profile'
+    });
+  }
+};
+
+// ============================================
+// CHANGE PASSWORD
+// ============================================
+
+/**
+ * @desc    Change password
+ * @route   PUT /api/auth/change-password
+ * @access  Private
+ */
+export const changePassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide current and new password'
+      });
+    }
+
+    const user = await User.findById(req.user._id).select('+password');
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    const isMatch = await user.comparePassword(currentPassword);
+    if (!isMatch) {
+      return res.status(401).json({
+        success: false,
+        message: 'Current password is incorrect'
+      });
+    }
+
+    user.password = newPassword;
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Password changed successfully'
+    });
+  } catch (error) {
+    console.error('Change password error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to change password'
+    });
+  }
+};
+
+// ============================================
+// VERIFY EMAIL
+// ============================================
+
+/**
+ * @desc    Verify email
+ * @route   GET /api/auth/verify-email/:token
+ * @access  Public
+ */
 export const verifyEmail = async (req, res) => {
   try {
     const { token } = req.params;
 
-    // Hash token
     const hashedToken = crypto
       .createHash('sha256')
       .update(token)
       .digest('hex');
 
-    // Find user with token
     const user = await User.findOne({
       verificationToken: hashedToken,
       verificationTokenExpire: { $gt: Date.now() }
@@ -366,7 +396,6 @@ export const verifyEmail = async (req, res) => {
       });
     }
 
-    // Verify user
     user.isVerified = true;
     user.verificationToken = undefined;
     user.verificationTokenExpire = undefined;
@@ -385,9 +414,15 @@ export const verifyEmail = async (req, res) => {
   }
 };
 
-// @desc    Forgot password
-// @route   POST /api/auth/forgot-password
-// @access  Public
+// ============================================
+// FORGOT PASSWORD
+// ============================================
+
+/**
+ * @desc    Forgot password
+ * @route   POST /api/auth/forgot-password
+ * @access  Public
+ */
 export const forgotPassword = async (req, res) => {
   try {
     const { email } = req.body;
@@ -401,11 +436,14 @@ export const forgotPassword = async (req, res) => {
       });
     }
 
-    // Generate reset token
-    const resetToken = user.getResetPasswordToken();
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    user.resetPasswordToken = crypto
+      .createHash('sha256')
+      .update(resetToken)
+      .digest('hex');
+    user.resetPasswordExpire = Date.now() + 15 * 60 * 1000; // 15 minutes
     await user.save({ validateBeforeSave: false });
 
-    // Send email
     await sendPasswordResetEmail(user, resetToken);
 
     res.status(200).json({
@@ -421,21 +459,25 @@ export const forgotPassword = async (req, res) => {
   }
 };
 
-// @desc    Reset password
-// @route   PUT /api/auth/reset-password/:token
-// @access  Public
+// ============================================
+// RESET PASSWORD
+// ============================================
+
+/**
+ * @desc    Reset password
+ * @route   PUT /api/auth/reset-password/:token
+ * @access  Public
+ */
 export const resetPassword = async (req, res) => {
   try {
     const { token } = req.params;
     const { password } = req.body;
 
-    // Hash token
     const hashedToken = crypto
       .createHash('sha256')
       .update(token)
       .digest('hex');
 
-    // Find user
     const user = await User.findOne({
       resetPasswordToken: hashedToken,
       resetPasswordExpire: { $gt: Date.now() }
@@ -448,7 +490,6 @@ export const resetPassword = async (req, res) => {
       });
     }
 
-    // Update password
     user.password = password;
     user.resetPasswordToken = undefined;
     user.resetPasswordExpire = undefined;
@@ -467,14 +508,20 @@ export const resetPassword = async (req, res) => {
   }
 };
 
-// @desc    Resend verification email
-// @route   POST /api/auth/resend-verification
-// @access  Public
-export const resendVerification = async (req, res) => {
-  try {
-    const { email } = req.body;
+// ============================================
+// ADDRESS MANAGEMENT
+// ============================================
 
-    const user = await User.findOne({ email });
+/**
+ * @desc    Add address
+ * @route   POST /api/auth/address
+ * @access  Private
+ */
+export const addAddress = async (req, res) => {
+  try {
+    const { street, city, state, zipCode, country, phone, label, isDefault } = req.body;
+
+    const user = await User.findById(req.user._id);
 
     if (!user) {
       return res.status(404).json({
@@ -483,48 +530,270 @@ export const resendVerification = async (req, res) => {
       });
     }
 
-    if (user.isVerified) {
-      return res.status(400).json({
-        success: false,
-        message: 'Email already verified'
-      });
+    if (isDefault) {
+      user.addresses.forEach(addr => addr.isDefault = false);
     }
 
-    // Generate new verification token
-    const verifyToken = user.getVerificationToken();
-    await user.save({ validateBeforeSave: false });
+    user.addresses.push({
+      street,
+      city,
+      state,
+      zipCode,
+      country: country || 'Myanmar',
+      phone: phone || user.phone,
+      label: label || 'Home',
+      isDefault: isDefault || false
+    });
 
-    // Send verification email
-    await sendVerificationEmail(user, verifyToken);
+    await user.save();
 
-    res.status(200).json({
+    res.status(201).json({
       success: true,
-      message: 'Verification email sent'
+      message: 'Address added successfully',
+      data: user.addresses
     });
   } catch (error) {
-    console.error('Resend verification error:', error);
+    console.error('Add address error:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to resend verification email'
+      message: 'Failed to add address'
     });
   }
 };
 
-// Helper function to set cookies
-const setTokenCookies = (res, accessToken, refreshToken) => {
-  const isProduction = process.env.NODE_ENV === 'production';
+/**
+ * @desc    Update address
+ * @route   PUT /api/auth/address/:addressId
+ * @access  Private
+ */
+export const updateAddress = async (req, res) => {
+  try {
+    const { addressId } = req.params;
+    const { street, city, state, zipCode, country, phone, label, isDefault } = req.body;
 
-  res.cookie('accessToken', accessToken, {
-    httpOnly: true,
-    secure: isProduction,
-    sameSite: 'strict',
-    maxAge: 15 * 60 * 1000 // 15 minutes
-  });
+    const user = await User.findById(req.user._id);
 
-  res.cookie('refreshToken', refreshToken, {
-    httpOnly: true,
-    secure: isProduction,
-    sameSite: 'strict',
-    maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
-  });
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    const address = user.addresses.id(addressId);
+    if (!address) {
+      return res.status(404).json({
+        success: false,
+        message: 'Address not found'
+      });
+    }
+
+    if (street) address.street = street;
+    if (city) address.city = city;
+    if (state) address.state = state;
+    if (zipCode) address.zipCode = zipCode;
+    if (country) address.country = country;
+    if (phone) address.phone = phone;
+    if (label) address.label = label;
+
+    if (isDefault) {
+      user.addresses.forEach(addr => {
+        if (addr._id.toString() !== addressId) {
+          addr.isDefault = false;
+        }
+      });
+      address.isDefault = true;
+    }
+
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Address updated successfully',
+      data: user.addresses
+    });
+  } catch (error) {
+    console.error('Update address error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update address'
+    });
+  }
+};
+
+/**
+ * @desc    Delete address
+ * @route   DELETE /api/auth/address/:addressId
+ * @access  Private
+ */
+export const deleteAddress = async (req, res) => {
+  try {
+    const { addressId } = req.params;
+
+    const user = await User.findById(req.user._id);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    const address = user.addresses.id(addressId);
+    if (!address) {
+      return res.status(404).json({
+        success: false,
+        message: 'Address not found'
+      });
+    }
+
+    if (address.isDefault && user.addresses.length > 1) {
+      const otherAddress = user.addresses.find(addr => addr._id.toString() !== addressId);
+      if (otherAddress) {
+        otherAddress.isDefault = true;
+      }
+    }
+
+    user.addresses.pull(addressId);
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Address deleted successfully',
+      data: user.addresses
+    });
+  } catch (error) {
+    console.error('Delete address error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to delete address'
+    });
+  }
+};
+
+// ============================================
+// WISHLIST MANAGEMENT
+// ============================================
+
+/**
+ * @desc    Add to wishlist
+ * @route   POST /api/auth/wishlist/:productId
+ * @access  Private
+ */
+export const addToWishlist = async (req, res) => {
+  try {
+    const { productId } = req.params;
+
+    const user = await User.findById(req.user._id);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    // Check if product already in wishlist
+    if (user.wishlist.includes(productId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Product already in wishlist'
+      });
+    }
+
+    user.wishlist.push(productId);
+    await user.save();
+
+    // Populate wishlist with product details
+    await user.populate({
+      path: 'wishlist',
+      select: 'name slug price comparePrice images thumbnail rating numReviews stock isPublished isActive'
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'Added to wishlist',
+      data: user.wishlist
+    });
+  } catch (error) {
+    console.error('Add to wishlist error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to add to wishlist'
+    });
+  }
+};
+
+/**
+ * @desc    Remove from wishlist
+ * @route   DELETE /api/auth/wishlist/:productId
+ * @access  Private
+ */
+export const removeFromWishlist = async (req, res) => {
+  try {
+    const { productId } = req.params;
+
+    const user = await User.findById(req.user._id);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    user.wishlist = user.wishlist.filter(id => id.toString() !== productId);
+    await user.save();
+
+    // Populate wishlist with product details
+    await user.populate({
+      path: 'wishlist',
+      select: 'name slug price comparePrice images thumbnail rating numReviews stock isPublished isActive'
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'Removed from wishlist',
+      data: user.wishlist
+    });
+  } catch (error) {
+    console.error('Remove from wishlist error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to remove from wishlist'
+    });
+  }
+};
+
+/**
+ * @desc    Get wishlist with full product details
+ * @route   GET /api/auth/wishlist
+ * @access  Private
+ */
+export const getWishlist = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id)
+      .populate({
+        path: 'wishlist',
+        select: 'name slug price comparePrice images thumbnail rating numReviews stock isPublished isActive'
+      });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: user.wishlist || []
+    });
+  } catch (error) {
+    console.error('Get wishlist error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get wishlist'
+    });
+  }
 };

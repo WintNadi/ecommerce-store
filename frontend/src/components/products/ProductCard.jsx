@@ -1,0 +1,227 @@
+import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
+import { Heart, ShoppingCart, Star, Clock } from 'lucide-react';
+import { addToCart } from '../../store/slices/cartSlice';
+import { addToWishlist, removeFromWishlist, getWishlist } from '../../store/slices/wishlistSlice';
+
+const ProductCard = ({ product }) => {
+  const dispatch = useDispatch();
+  const { isAuthenticated } = useSelector((state) => state.auth);
+  const { items: wishlistItems, isLoading } = useSelector((state) => state.wishlist);
+  const [isAdded, setIsAdded] = useState(false);
+  const [isInWishlist, setIsInWishlist] = useState(false);
+
+  const productId = product._id || product.id;
+
+  const {
+    name,
+    price,
+    comparePrice,
+    images,
+    rating,
+    numReviews,
+    stock,
+    discount,
+    isPublished,
+    isActive
+  } = product;
+
+  const discountedPrice = discount > 0 ? price * (1 - discount / 100) : price;
+  const isOnSale = discount > 0;
+  const isOutOfStock = stock === 0;
+  const isNotAvailable = !isPublished || !isActive;
+
+  // ✅ Wishlist items ပြောင်းတိုင်း isInWishlist ကို Update လုပ်ပါ
+  useEffect(() => {
+    if (wishlistItems && wishlistItems.length > 0) {
+      const found = wishlistItems.some(item => item._id === productId || item.id === productId);
+      setIsInWishlist(found);
+    } else {
+      setIsInWishlist(false);
+    }
+  }, [wishlistItems, productId]);
+
+  // ✅ Component Mount လုပ်တဲ့အခါ Wishlist ကို Fetch လုပ်ပါ
+  useEffect(() => {
+    if (isAuthenticated) {
+      dispatch(getWishlist());
+    }
+  }, [dispatch, isAuthenticated]);
+
+  const handleAddToCart = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (!isAuthenticated) {
+      return;
+    }
+
+    if (isNotAvailable || isOutOfStock) {
+      return;
+    }
+
+    try {
+      await dispatch(addToCart({ productId: productId, quantity: 1 })).unwrap();
+      setIsAdded(true);
+      setTimeout(() => setIsAdded(false), 2000);
+    } catch (error) {
+      console.error('Failed to add to cart:', error);
+    }
+  };
+
+  const handleWishlist = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (!isAuthenticated) {
+      // Redirect to login
+      return;
+    }
+
+    try {
+      if (isInWishlist) {
+        await dispatch(removeFromWishlist(productId)).unwrap();
+        setIsInWishlist(false);
+      } else {
+        await dispatch(addToWishlist(productId)).unwrap();
+        setIsInWishlist(true);
+      }
+      // ✅ Wishlist ကို ပြန် Fetch လုပ်ပါ (state ကို sync လုပ်ဖို့)
+      await dispatch(getWishlist());
+    } catch (error) {
+      console.error('Wishlist error:', error);
+    }
+  };
+
+  return (
+    <div className="group relative bg-white dark:bg-gray-800 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden">
+      <Link to={`/product/${productId}`} className="block">
+        <div className="relative aspect-square overflow-hidden bg-gray-100 dark:bg-gray-700">
+          <img
+            src={images?.[0]?.url || 'https://via.placeholder.com/300x300?text=No+Image'}
+            alt={name}
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+            loading="lazy"
+          />
+          
+          {/* Badges */}
+          <div className="absolute top-2 left-2 flex flex-col gap-1">
+            {isOnSale && (
+              <span className="px-2 py-1 text-xs font-semibold text-white bg-red-500 rounded">
+                {Math.round(discount)}% OFF
+              </span>
+            )}
+            {isOutOfStock && (
+              <span className="px-2 py-1 text-xs font-semibold text-white bg-gray-700 rounded">
+                Out of Stock
+              </span>
+            )}
+            {isNotAvailable && !isOutOfStock && (
+              <span className="px-2 py-1 text-xs font-semibold text-white bg-indigo-500 rounded flex items-center gap-1">
+                <Clock className="h-3 w-3" />
+                Coming Soon
+              </span>
+            )}
+          </div>
+
+          {/* Wishlist Button */}
+          <button
+            onClick={handleWishlist}
+            className="absolute top-2 right-2 p-2 bg-white/80 dark:bg-gray-800/80 rounded-full hover:bg-white dark:hover:bg-gray-700 transition-colors z-10"
+          >
+            <Heart 
+              className={`h-4 w-4 transition-colors ${
+                isInWishlist 
+                  ? 'text-red-500 fill-red-500' 
+                  : 'text-gray-600 dark:text-gray-400 hover:text-red-500'
+              }`} 
+            />
+          </button>
+        </div>
+
+        <div className="p-4">
+          <h3 className="text-sm font-medium text-gray-900 dark:text-white hover:text-indigo-600 dark:hover:text-indigo-400 truncate">
+            {name}
+          </h3>
+
+          <div className="flex items-center mt-1">
+            <div className="flex items-center">
+              {[...Array(5)].map((_, i) => (
+                <Star
+                  key={i}
+                  className={`h-3 w-3 ${
+                    i < Math.floor(rating || 0)
+                      ? 'text-yellow-400 fill-yellow-400'
+                      : 'text-gray-300 dark:text-gray-600'
+                  }`}
+                />
+              ))}
+            </div>
+            <span className="ml-1 text-xs text-gray-500 dark:text-gray-400">
+              ({numReviews || 0})
+            </span>
+          </div>
+
+          <div className="flex items-center mt-2">
+            {isOnSale ? (
+              <>
+                <span className="text-lg font-bold text-red-600 dark:text-red-400">
+                  ${discountedPrice.toFixed(2)}
+                </span>
+                <span className="ml-2 text-sm text-gray-400 line-through">
+                  ${price.toFixed(2)}
+                </span>
+              </>
+            ) : (
+              <span className="text-lg font-bold text-gray-900 dark:text-white">
+                ${price.toFixed(2)}
+              </span>
+            )}
+          </div>
+
+          {!isOutOfStock && stock <= 5 && (
+            <p className="mt-1 text-xs text-orange-500">
+              Only {stock} left in stock
+            </p>
+          )}
+        </div>
+      </Link>
+
+      {/* Add to Cart Button */}
+      <div className="px-4 pb-4">
+        {isNotAvailable ? (
+          <button
+            disabled
+            className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-gray-500 bg-gray-200 dark:bg-gray-700 dark:text-gray-400 rounded-md cursor-not-allowed"
+          >
+            <Clock className="h-4 w-4" />
+            Coming Soon
+          </button>
+        ) : isOutOfStock ? (
+          <button
+            disabled
+            className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-white bg-gray-400 rounded-md cursor-not-allowed"
+          >
+            Out of Stock
+          </button>
+        ) : (
+          <button
+            onClick={handleAddToCart}
+            disabled={isAdded}
+            className={`w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-white rounded-md transition-colors ${
+              isAdded
+                ? 'bg-green-500'
+                : 'bg-indigo-600 hover:bg-indigo-700'
+            }`}
+          >
+            <ShoppingCart className="h-4 w-4" />
+            {isAdded ? 'Added!' : 'Add to Cart'}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default ProductCard;

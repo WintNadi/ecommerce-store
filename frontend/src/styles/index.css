@@ -1,0 +1,276 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================
+   BASE STYLES
+============================================ */
+@layer base {
+  body {
+    @apply antialiased bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white;
+  }
+
+  /* Scrollbar Styling */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-gray-100 dark:bg-gray-800;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-gray-400 dark:bg-gray-600 rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-gray-500 dark:bg-gray-500;
+  }
+}
+
+/* ============================================
+   MOOD-BASED THEMES
+============================================ */
+/* Calm Mood */
+.mood-calm {
+  --mood-primary: #10B981;
+  --mood-primary-dark: #059669;
+  --mood-bg-start: #ECFDF5;
+  --mood-bg-end: #D1FAE5;
+}
+
+/* Energetic Mood */
+.mood-energetic {
+  --mood-primary: #F97316;
+  --mood-primary-dark: #EA580C;
+  --mood-bg-start: #FFF7ED;
+  --mood-bg-end: #FFEDD5;
+}
+
+/* Luxury Mood */
+.mood-luxury {
+  --mood-primary: #D97706;
+  --mood-primary-dark: #B45309;
+  --mood-bg-start: #FFFBEB;
+  --mood-bg-end: #FEF3C7;
+}
+
+/* Dark Mood */
+.mood-dark {
+  --mood-primary: #8B5CF6;
+  --mood-primary-dark: #7C3AED;
+  --mood-bg-start: #1F2937;
+  --mood-bg-end: #111827;
+}
+
+/* Light Mood */
+.mood-light {
+  --mood-primary: #0EA5E9;
+  --mood-primary-dark: #0284C7;
+  --mood-bg-start: #F0F9FF;
+  --mood-bg-end: #E0F2FE;
+}
+
+/* Default Mood */
+.mood-default {
+  --mood-primary: #4F46E5;
+  --mood-primary-dark: #4338CA;
+  --mood-bg-start: #F9FAFB;
+  --mood-bg-end: #F3F4F6;
+}
+
+/* Apply mood colors to elements */
+.mood-calm .bg-indigo-600 { background-color: var(--mood-primary) !important; }
+.mood-calm .hover\:bg-indigo-700:hover { background-color: var(--mood-primary-dark) !important; }
+.mood-calm .text-indigo-600 { color: var(--mood-primary) !important; }
+.mood-calm .ring-indigo-500 { --tw-ring-color: var(--mood-primary) !important; }
+.mood-calm .focus\:ring-indigo-500:focus { --tw-ring-color: var(--mood-primary) !important; }
+.mood-calm .border-indigo-200 { border-color: var(--mood-primary) !important; }
+.mood-calm .bg-indigo-50 { background-color: var(--mood-bg-start) !important; }
+
+.mood-energetic .bg-indigo-600 { background-color: var(--mood-primary) !important; }
+.mood-energetic .hover\:bg-indigo-700:hover { background-color: var(--mood-primary-dark) !important; }
+.mood-energetic .text-indigo-600 { color: var(--mood-primary) !important; }
+.mood-energetic .ring-indigo-500 { --tw-ring-color: var(--mood-primary) !important; }
+.mood-energetic .focus\:ring-indigo-500:focus { --tw-ring-color: var(--mood-primary) !important; }
+.mood-energetic .border-indigo-200 { border-color: var(--mood-primary) !important; }
+.mood-energetic .bg-indigo-50 { background-color: var(--mood-bg-start) !important; }
+
+.mood-luxury .bg-indigo-600 { background-color: var(--mood-primary) !important; }
+.mood-luxury .hover\:bg-indigo-700:hover { background-color: var(--mood-primary-dark) !important; }
+.mood-luxury .text-indigo-600 { color: var(--mood-primary) !important; }
+.mood-luxury .ring-indigo-500 { --tw-ring-color: var(--mood-primary) !important; }
+.mood-luxury .focus\:ring-indigo-500:focus { --tw-ring-color: var(--mood-primary) !important; }
+.mood-luxury .border-indigo-200 { border-color: var(--mood-primary) !important; }
+.mood-luxury .bg-indigo-50 { background-color: var(--mood-bg-start) !important; }
+
+.mood-dark .bg-indigo-600 { background-color: var(--mood-primary) !important; }
+.mood-dark .hover\:bg-indigo-700:hover { background-color: var(--mood-primary-dark) !important; }
+.mood-dark .text-indigo-600 { color: var(--mood-primary) !important; }
+.mood-dark .ring-indigo-500 { --tw-ring-color: var(--mood-primary) !important; }
+.mood-dark .focus\:ring-indigo-500:focus { --tw-ring-color: var(--mood-primary) !important; }
+.mood-dark .border-indigo-200 { border-color: var(--mood-primary) !important; }
+.mood-dark .bg-indigo-50 { background-color: var(--mood-bg-start) !important; }
+
+.mood-light .bg-indigo-600 { background-color: var(--mood-primary) !important; }
+.mood-light .hover\:bg-indigo-700:hover { background-color: var(--mood-primary-dark) !important; }
+.mood-light .text-indigo-600 { color: var(--mood-primary) !important; }
+.mood-light .ring-indigo-500 { --tw-ring-color: var(--mood-primary) !important; }
+.mood-light .focus\:ring-indigo-500:focus { --tw-ring-color: var(--mood-primary) !important; }
+.mood-light .border-indigo-200 { border-color: var(--mood-primary) !important; }
+.mood-light .bg-indigo-50 { background-color: var(--mood-bg-start) !important; }
+
+/* ============================================
+   ANIMATIONS
+============================================ */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideIn {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@keyframes spin-slow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes bounce-in {
+  0% { transform: scale(0.3); opacity: 0; }
+  50% { transform: scale(1.05); }
+  70% { transform: scale(0.9); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+.animate-slide-in {
+  animation: slideIn 0.3s ease-out;
+}
+
+.animate-slide-down {
+  animation: slideDown 0.2s ease-out;
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+.animate-spin-slow {
+  animation: spin-slow 3s linear infinite;
+}
+
+.animate-bounce-in {
+  animation: bounce-in 0.5s ease-out;
+}
+
+/* ============================================
+   LOADING SKELETON
+============================================ */
+.skeleton {
+  @apply bg-gray-200 dark:bg-gray-700 rounded animate-pulse;
+}
+
+.skeleton-text {
+  @apply h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse;
+}
+
+.skeleton-image {
+  @apply bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse;
+}
+
+/* ============================================
+   TRANSITIONS
+============================================ */
+.transition-theme {
+  @apply transition-colors duration-200 ease-in-out;
+}
+
+.transition-all-smooth {
+  @apply transition-all duration-300 ease-in-out;
+}
+
+/* ============================================
+   CARD HOVER EFFECTS
+============================================ */
+.card-hover {
+  @apply transition-all duration-300 ease-in-out hover:shadow-lg hover:-translate-y-1;
+}
+
+/* ============================================
+   GRADIENT BACKGROUNDS
+============================================ */
+.bg-gradient-mood {
+  background: linear-gradient(135deg, var(--mood-bg-start), var(--mood-bg-end));
+}
+
+/* ============================================
+   RESPONSIVE UTILITIES
+============================================ */
+@layer utilities {
+  .container-padding {
+    @apply px-4 sm:px-6 lg:px-8;
+  }
+
+  .section-spacing {
+    @apply py-8 sm:py-12 lg:py-16;
+  }
+}
+
+/* ============================================
+   TOAST NOTIFICATION
+============================================ */
+.toast {
+  @apply fixed bottom-4 right-4 z-50 px-6 py-3 rounded-lg shadow-lg text-white transform transition-all duration-500;
+}
+
+.toast-success {
+  @apply bg-green-500;
+}
+
+.toast-error {
+  @apply bg-red-500;
+}
+
+.toast-info {
+  @apply bg-blue-500;
+}
+
+/* ============================================
+   PRODUCT CARD
+============================================ */
+.product-card {
+  @apply bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden transition-all duration-300 hover:shadow-xl hover:-translate-y-1;
+}
+
+.product-image {
+  @apply w-full h-64 object-cover transition-transform duration-500 group-hover:scale-105;
+}
+
+/* ============================================
+   DARK MODE OVERRIDES
+============================================ */
+.dark .mood-light,
+.dark .mood-default,
+.dark .mood-calm,
+.dark .mood-energetic,
+.dark .mood-luxury {
+  --mood-bg-start: #1F2937;
+  --mood-bg-end: #111827;
+}

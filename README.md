@@ -27,7 +27,6 @@ A modern, full-featured **MERN Stack E-Commerce Platform** built with **MongoDB,
 - [API Documentation](#-api-documentation)
 - [Future Improvements](#-future-improvements)
 - [Contributing](#-contributing)
-- [License](#-license)
 - [Author](#-author)
 
 ---
@@ -440,18 +439,12 @@ git push origin feature/AmazingFeature
 
 ---
 
-# 📄 License
-
-This project is licensed under the **MIT License**.
-
----
 
 # 👨‍💻 Author
 
 **Your Name**
 
-- GitHub: https://github.com/yourusername
-- Email: your.email@example.com
+- GitHub: https://github.com/WintNadi
 
 ---
 

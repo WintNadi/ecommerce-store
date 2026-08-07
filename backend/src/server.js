@@ -13,13 +13,14 @@ import db from './config/db.js';
 
 // Import Routes
 import authRoutes from './routes/authRoutes.js';
-import productRoutes from './routes/productRoutes.js';      // ✅ ထည့်ပါ
-import orderRoutes from './routes/orderRoutes.js';          // ✅ ထည့်ပါ
-import cartRoutes from './routes/cartRoutes.js';            // ✅ ထည့်ပါ
-import adminRoutes from './routes/adminRoutes.js';          // ✅ ထည့်ပါ
+import productRoutes from './routes/productRoutes.js';
+import orderRoutes from './routes/orderRoutes.js';
+import cartRoutes from './routes/cartRoutes.js';
+import adminRoutes from './routes/adminRoutes.js';
+import categoryRoutes from './routes/categoryRoutes.js';
 
 // Import Middleware
-import { protect } from './middleware/auth.js';             // ✅ ထည့်ပါ
+import { protect } from './middleware/auth.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { generalLimiter } from './middleware/rateLimiter.js';
 
@@ -124,8 +125,22 @@ if (process.env.NODE_ENV === 'development') {
   app.use(morgan('combined'));
 }
 
-// Global Rate Limiting
-app.use('/api', generalLimiter);
+// ============================================
+// RATE LIMITING (တစ်ချို့ Routes ကိုချန်လှပ်ထား)
+// ============================================
+
+// ✅ Rate Limiter - Order Routes ကို Skip လုပ်ပါ
+app.use('/api', (req, res, next) => {
+  // Order routes ကို Rate Limiter မသုံးပါနဲ့
+  if (req.path.startsWith('/orders')) {
+    return next();
+  }
+  // Auth routes အတွက် သီးခြား Rate Limiter ရှိတယ်
+  if (req.path.startsWith('/auth')) {
+    return next();
+  }
+  generalLimiter(req, res, next);
+});
 
 // ============================================
 // HEALTH CHECK ROUTES
@@ -167,14 +182,15 @@ app.get('/health', async (req, res) => {
 
 // Public Routes
 app.use('/api/auth', authRoutes);
-app.use('/api/products', productRoutes);        // ✅ ထည့်ပါ
+app.use('/api/products', productRoutes);
+app.use('/api/categories', categoryRoutes);
 
 // Protected Routes
-app.use('/api/orders', protect, orderRoutes);   // ✅ ထည့်ပါ
-app.use('/api/cart', protect, cartRoutes);      // ✅ ထည့်ပါ
+app.use('/api/orders', protect, orderRoutes);
+app.use('/api/cart', protect, cartRoutes);
 
 // Admin Routes
-app.use('/api/admin', protect, adminRoutes);    // ✅ ထည့်ပါ
+app.use('/api/admin', protect, adminRoutes);
 
 // ============================================
 // 404 HANDLER
@@ -220,11 +236,13 @@ const startServer = async () => {
       console.log('  📦 Products');
       console.log('  🛒 Cart');
       console.log('  📋 Orders');
-      console.log('  🔍 Smart Search (Coming Soon)');
-      console.log('  📊 CSV Export (Coming Soon)');
-      console.log('  📍 Order Tracking (Coming Soon)');
-      console.log('  🎨 Mood-Based Store (Coming Soon)');
-      console.log('  🌙 Dark Mode (Coming Soon)');
+      console.log('  🏷️ Categories');
+      console.log('  👑 Admin Panel');
+      console.log('  🔍 Smart Search');
+      console.log('  📊 CSV Export');
+      console.log('  📍 Order Tracking');
+      console.log('  🎨 Mood-Based Store');
+      console.log('  🌙 Dark Mode');
       console.log('═══════════════════════════════════════════════\n');
     });
 

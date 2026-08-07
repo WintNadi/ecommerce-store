@@ -1,29 +1,57 @@
 import React from 'react';
 import { useDispatch } from 'react-redux';
 import { Link } from 'react-router-dom';
-import { Trash2, Minus, Plus, X } from 'lucide-react';
+import { Trash2, Minus, Plus } from 'lucide-react';
 import { updateCartItem, removeFromCart } from '../../store/slices/cartSlice';
 
 const CartItem = ({ item }) => {
   const dispatch = useDispatch();
   const { product, name, price, quantity, image, totalPrice, variation } = item;
 
+  // ✅ productId ကိုသေချာယူပါ
+  let productId;
+  if (product && typeof product === 'object') {
+    // product က Object ဖြစ်နေရင် _id ကိုယူပါ
+    productId = product._id || product.id;
+  } else if (product) {
+    // product က String ဖြစ်နေရင် အဲဒီအတိုင်းသုံးပါ
+    productId = product;
+  }
+
+  // ✅ productId ကို String အနေနဲ့ သေချာယူပါ
+  const productIdStr = productId ? String(productId) : null;
+
+  console.log('CartItem - product:', product);
+  console.log('CartItem - productId:', productIdStr);
+  console.log('CartItem - name:', name);
+  console.log('CartItem - quantity:', quantity);
+
   const handleQuantityChange = (newQuantity) => {
-    if (newQuantity < 1) {
-      dispatch(removeFromCart({ productId: product, variation }));
+    if (!productIdStr) {
+      console.error('Invalid productId:', productIdStr);
       return;
     }
-    dispatch(updateCartItem({ productId: product, quantity: newQuantity, variation }));
+    
+    if (newQuantity < 1) {
+      dispatch(removeFromCart({ productId: productIdStr, variation }));
+      return;
+    }
+    dispatch(updateCartItem({ productId: productIdStr, quantity: newQuantity, variation }));
   };
 
   const handleRemove = () => {
-    dispatch(removeFromCart({ productId: product, variation }));
+    if (!productIdStr) {
+      console.error('Invalid productId:', productIdStr);
+      return;
+    }
+    console.log('Removing item with productId:', productIdStr);
+    dispatch(removeFromCart({ productId: productIdStr, variation }));
   };
 
   return (
     <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 py-4 border-b border-gray-200 dark:border-gray-700">
       {/* Product Image */}
-      <Link to={`/product/${product}`} className="flex-shrink-0">
+      <Link to={`/product/${productIdStr}`} className="flex-shrink-0">
         <img
           src={image || 'https://via.placeholder.com/100x100?text=No+Image'}
           alt={name}
@@ -33,7 +61,7 @@ const CartItem = ({ item }) => {
 
       {/* Product Info */}
       <div className="flex-1 min-w-0">
-        <Link to={`/product/${product}`}>
+        <Link to={`/product/${productIdStr}`}>
           <h3 className="text-sm font-medium text-gray-900 dark:text-white hover:text-indigo-600 dark:hover:text-indigo-400">
             {name}
           </h3>

@@ -38,16 +38,16 @@ export const createProduct = asyncHandler(async (req, res) => {
     isPublished
   } = req.body;
 
-  // ✅ Check if category exists (if provided)
-  if (category) {
+  // Check if category exists (if provided and not empty)
+  if (category && category.trim() !== '') {
     const categoryExists = await Category.findById(category);
     if (!categoryExists) {
       throw new AppError('Category not found', 404);
     }
   }
 
-  // Check if sub-category exists (if provided)
-  if (subCategory) {
+  // Check if sub-category exists (if provided and not empty)
+  if (subCategory && subCategory.trim() !== '') {
     const subCategoryExists = await Category.findById(subCategory);
     if (!subCategoryExists) {
       throw new AppError('Sub-category not found', 404);
@@ -63,8 +63,8 @@ export const createProduct = asyncHandler(async (req, res) => {
     comparePrice,
     costPrice,
     stock,
-    category: category || null,
-    subCategory: subCategory || null,
+    category: (category && category.trim() !== '') ? category : null,
+    subCategory: (subCategory && subCategory.trim() !== '') ? subCategory : null,
     tags: tags || [],
     images: images || [],
     thumbnail: thumbnail || '',
@@ -83,7 +83,7 @@ export const createProduct = asyncHandler(async (req, res) => {
   });
 
   // Increment category product count (if category exists)
-  if (category) {
+  if (category && category.trim() !== '') {
     const categoryExists = await Category.findById(category);
     if (categoryExists) {
       await categoryExists.incrementProductCount();
@@ -121,15 +121,24 @@ export const getProducts = asyncHandler(async (req, res) => {
     search,
     isFeatured,
     isPublished = true,
-    inStock
+    inStock,
+    seller,
+    admin
   } = req.query;
 
   // Build filter
   const filter = {};
 
-  // Only show published products for public
-  if (isPublished !== undefined) {
-    filter.isPublished = isPublished === 'true';
+  // ✅ Role-based filtering
+  if (admin) {
+    // Admin: အကုန်ပြမယ် (isPublished မစစ်ဘူး)
+    // ဘာမှမထည့်ဘူး
+  } else if (seller) {
+    // Seller: ကိုယ်ပိုင် Products ပဲပြမယ် (isPublished မစစ်ဘူး)
+    filter.seller = seller;
+  } else {
+    // Public: Published products ပဲပြမယ်
+    filter.isPublished = true;
   }
 
   // Category filter (only if provided)
@@ -198,7 +207,8 @@ export const getProducts = asyncHandler(async (req, res) => {
     .skip(skip)
     .limit(parseInt(limit))
     .populate('category', 'name slug')
-    .populate('subCategory', 'name slug');
+    .populate('subCategory', 'name slug')
+    .populate('seller', 'name email');
 
   // If search, add text score
   if (search) {
@@ -233,6 +243,11 @@ export const getProducts = asyncHandler(async (req, res) => {
 export const getProduct = asyncHandler(async (req, res) => {
   const { id } = req.params;
 
+  // Check if ID is provided
+  if (!id) {
+    throw new AppError('Product ID is required', 400);
+  }
+
   // Check if id is slug or ObjectId
   const isObjectId = id.match(/^[0-9a-fA-F]{24}$/);
 
@@ -241,12 +256,14 @@ export const getProduct = asyncHandler(async (req, res) => {
     product = await Product.findById(id)
       .populate('category', 'name slug')
       .populate('subCategory', 'name slug')
-      .populate('reviews.user', 'name profileImage');
+      .populate('reviews.user', 'name profileImage')
+      .populate('seller', 'name email');
   } else {
     product = await Product.findOne({ slug: id })
       .populate('category', 'name slug')
       .populate('subCategory', 'name slug')
-      .populate('reviews.user', 'name profileImage');
+      .populate('reviews.user', 'name profileImage')
+      .populate('seller', 'name email');
   }
 
   if (!product) {
@@ -319,7 +336,12 @@ export const updateProduct = asyncHandler(async (req, res) => {
 
   allowedFields.forEach(field => {
     if (req.body[field] !== undefined) {
-      product[field] = req.body[field];
+      // Category and subCategory: empty string should be null
+      if (field === 'category' || field === 'subCategory') {
+        product[field] = (req.body[field] && req.body[field].trim() !== '') ? req.body[field] : null;
+      } else {
+        product[field] = req.body[field];
+      }
     }
   });
 

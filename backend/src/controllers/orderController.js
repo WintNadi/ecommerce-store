@@ -184,7 +184,12 @@ export const getOrders = asyncHandler(async (req, res) => {
     .skip(skip)
     .limit(parseInt(limit))
     .populate('user', 'name email')
-    .populate('orderItems.product', 'name slug images');
+    .populate({
+      path: 'orderItems.product',
+      select: 'name slug price images',
+      options: { lean: true }
+    })
+    .lean();
 
   const total = await Order.countDocuments(filter);
 
@@ -221,13 +226,27 @@ export const getMyOrders = asyncHandler(async (req, res) => {
     .sort({ createdAt: -1 })
     .skip(skip)
     .limit(parseInt(limit))
-    .populate('orderItems.product', 'name slug images');
+    .populate({
+      path: 'orderItems.product',
+      select: 'name slug price images',
+      options: { lean: true }
+    })
+    .lean();
 
   const total = await Order.countDocuments(query);
 
+  // Format orders for frontend
+  const formattedOrders = orders.map(order => ({
+    ...order,
+    orderItems: order.orderItems.map(item => ({
+      ...item,
+      product: item.product || null
+    }))
+  }));
+
   res.status(200).json({
     success: true,
-    data: orders,
+    data: formattedOrders,
     pagination: {
       page: parseInt(page),
       limit: parseInt(limit),
@@ -251,8 +270,13 @@ export const getOrder = asyncHandler(async (req, res) => {
 
   const order = await Order.findById(id)
     .populate('user', 'name email phone')
-    .populate('orderItems.product', 'name slug images')
-    .populate('cancelledBy', 'name email');
+    .populate({
+      path: 'orderItems.product',
+      select: 'name slug price images',
+      options: { lean: true }
+    })
+    .populate('cancelledBy', 'name email')
+    .lean();
 
   if (!order) {
     throw new AppError('Order not found', 404);
@@ -467,9 +491,11 @@ export const cancelOrder = asyncHandler(async (req, res) => {
 export const getOrderTracking = asyncHandler(async (req, res) => {
   const { id } = req.params;
 
-  const order = await Order.findById(id).select(
-    'orderNumber status trackingNumber trackingProvider trackingUrl trackingHistory trackingLastUpdate shippingAddress estimatedDelivery'
-  );
+  const order = await Order.findById(id)
+    .select(
+      'orderNumber status trackingNumber trackingProvider trackingUrl trackingHistory trackingLastUpdate shippingAddress estimatedDelivery'
+    )
+    .lean();
 
   if (!order) {
     throw new AppError('Order not found', 404);
@@ -482,16 +508,7 @@ export const getOrderTracking = asyncHandler(async (req, res) => {
 
   res.status(200).json({
     success: true,
-    data: {
-      orderNumber: order.orderNumber,
-      status: order.status,
-      trackingNumber: order.trackingNumber,
-      trackingProvider: order.trackingProvider,
-      trackingUrl: order.trackingUrl,
-      history: order.trackingHistory,
-      lastUpdate: order.trackingLastUpdate,
-      estimatedDelivery: order.estimatedDelivery
-    }
+    data: order
   });
 });
 
@@ -597,7 +614,8 @@ export const exportOrders = asyncHandler(async (req, res) => {
 
   const orders = await Order.find(filter)
     .populate('user', 'name email')
-    .sort({ createdAt: -1 });
+    .sort({ createdAt: -1 })
+    .lean();
 
   if (orders.length === 0) {
     throw new AppError('No orders found to export', 404);

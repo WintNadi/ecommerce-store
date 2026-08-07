@@ -7,6 +7,7 @@ import adminReducer from './slices/adminSlice';
 import searchReducer from './slices/searchSlice';  // ← ဒါပါရမယ်
 import themeReducer from './slices/themeSlice';
 import wishlistReducer from './slices/wishlistSlice';
+import categoryReducer from './slices/categorySlice';
 
 export const store = configureStore({
   reducer: {
@@ -18,6 +19,7 @@ export const store = configureStore({
     search: searchReducer,
     theme: themeReducer,
     wishlist: wishlistReducer,
+    categories: categoryReducer,
   },
 });
 

@@ -1,12 +1,12 @@
 import rateLimit from 'express-rate-limit';
 
-/**
- * General Rate Limiter
- * ပုံမှန် API Requests တွေအတွက်
- */
+// Development Mode မှာ Rate Limiter ကိုပိတ်ပါ
+const isDevelopment = process.env.NODE_ENV === 'development';
+
+// General rate limiter
 export const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // 100 requests per window
+  max: isDevelopment ? 999999 : 100, // Development မှာ အကုန်လက်ခံမယ်
   message: {
     success: false,
     message: 'Too many requests from this IP, please try again later.'
@@ -14,71 +14,35 @@ export const generalLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   skip: (req) => {
-    // Health check ကို skip လုပ်မယ်
+    // Development မှာ အကုန် Skip လုပ်မယ်
+    if (isDevelopment) return true;
     return req.path === '/health';
   }
 });
 
-/**
- * Authentication Rate Limiter
- * Register, Forgot Password စတဲ့ Auth Routes တွေအတွက်
- */
+// Auth rate limiter
 export const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10, // 10 requests per window
+  windowMs: 15 * 60 * 1000,
+  max: isDevelopment ? 999999 : 10,
   message: {
     success: false,
     message: 'Too many authentication attempts, please try again later.'
   },
   standardHeaders: true,
-  legacyHeaders: false
+  legacyHeaders: false,
+  skip: () => isDevelopment
 });
 
-/**
- * Login Rate Limiter (Stricter)
- * Login attempts တွေအတွက် (Brute Force ကာကွယ်ဖို့)
- */
+// Login rate limiter
 export const loginLimiter = rateLimit({
-  windowMs: 30 * 60 * 1000, // 30 minutes
-  max: 5, // 5 failed attempts
-  skipSuccessfulRequests: true, // အောင်မြင်ရင် count မထည့်ဘူး
+  windowMs: 30 * 60 * 1000,
+  max: isDevelopment ? 999999 : 5,
+  skipSuccessfulRequests: true,
   message: {
     success: false,
     message: 'Too many failed login attempts. Please try again after 30 minutes.'
   },
   standardHeaders: true,
-  legacyHeaders: false
+  legacyHeaders: false,
+  skip: () => isDevelopment
 });
-
-/**
- * API Rate Limiter (Strict)
- * Sensitive API endpoints တွေအတွက်
- */
-export const apiLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000, // 1 hour
-  max: 1000, // 1000 requests per hour
-  message: {
-    success: false,
-    message: 'API rate limit exceeded. Please try again later.'
-  },
-  standardHeaders: true,
-  legacyHeaders: false
-});
-
-/**
- * Admin Rate Limiter
- * Admin routes တွေအတွက် (ပိုပြီး လျှော့ထားတယ်)
- */
-export const adminLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 50, // 50 requests per window
-  message: {
-    success: false,
-    message: 'Too many admin requests, please try again later.'
-  },
-  standardHeaders: true,
-  legacyHeaders: false
-});
-
-// ❌ Redis Limiter ကိုဖယ်ပါ (မလိုတော့ဘူး)
-// export const redisLimiter = rateLimit({ ... });

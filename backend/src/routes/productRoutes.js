@@ -20,21 +20,21 @@ import { generalLimiter } from '../middleware/rateLimiter.js';
 const router = express.Router();
 
 // ============================================
-// PUBLIC ROUTES
+// ✅ PUBLIC ROUTES (ပထမဆုံးထားပါ)
 // ============================================
 
 router.get('/', getProducts);
 router.get('/search', searchProducts);
 router.get('/featured', getFeaturedProducts);
 router.get('/top-selling', getTopSellingProducts);
-router.get('/:id', getProduct);
+router.get('/stats', protect, authorize('admin', 'seller'), getProductStats); // ✅ /stats ကို /:id ရှေ့မှာထားပါ
+router.get('/:id', getProduct); // ✅ /:id ကို နောက်ဆုံးထားပါ
 router.get('/:id/reviews', getProductReviews);
 
 // ============================================
 // PROTECTED ROUTES
 // ============================================
 
-// Product Reviews (User)
 router.post('/:id/reviews', protect, addProductReview);
 
 // ============================================
@@ -48,6 +48,5 @@ router.patch('/:id/stock', protect, authorize('admin', 'seller'), updateStock);
 
 // Admin only
 router.post('/bulk', protect, authorize('admin'), bulkCreateProducts);
-router.get('/stats', protect, authorize('admin', 'seller'), getProductStats);
 
 export default router;

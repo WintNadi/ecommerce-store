@@ -8,23 +8,39 @@ import { addToWishlist, removeFromWishlist, getWishlist } from '../../store/slic
 const ProductCard = ({ product }) => {
   const dispatch = useDispatch();
   const { isAuthenticated } = useSelector((state) => state.auth);
-  const { items: wishlistItems, isLoading } = useSelector((state) => state.wishlist);
+  const { items: wishlistItems } = useSelector((state) => state.wishlist);
   const [isAdded, setIsAdded] = useState(false);
   const [isInWishlist, setIsInWishlist] = useState(false);
 
-  const productId = product._id || product.id;
+  // ✅ product ကို စစ်ပါ
+  if (!product) {
+    console.warn('ProductCard: product is null or undefined');
+    return null;
+  }
+
+  // ✅ productId ကိုယူပါ (Backend က id ကိုပြန်ပေးတယ်)
+  const productId = product.id || product._id;
+
+  // ✅ productId မရှိရင် console log ပြပြီး null return လုပ်ပါ
+  if (!productId) {
+    console.warn('ProductCard: No product ID found. Product:', product);
+    return null;
+  }
+
+  // ✅ Log ထုတ်ပြီးစစ်ပါ
+  console.log('ProductCard rendering with ID:', productId);
 
   const {
-    name,
-    price,
+    name = 'Product',
+    price = 0,
     comparePrice,
-    images,
-    rating,
-    numReviews,
-    stock,
-    discount,
-    isPublished,
-    isActive
+    images = [],
+    rating = 0,
+    numReviews = 0,
+    stock = 0,
+    discount = 0,
+    isPublished = false,
+    isActive = false
   } = product;
 
   const discountedPrice = discount > 0 ? price * (1 - discount / 100) : price;
@@ -32,17 +48,17 @@ const ProductCard = ({ product }) => {
   const isOutOfStock = stock === 0;
   const isNotAvailable = !isPublished || !isActive;
 
-  // ✅ Wishlist items ပြောင်းတိုင်း isInWishlist ကို Update လုပ်ပါ
+  // Check if product is in wishlist
   useEffect(() => {
     if (wishlistItems && wishlistItems.length > 0) {
-      const found = wishlistItems.some(item => item._id === productId || item.id === productId);
+      const found = wishlistItems.some(item => item.id === productId || item._id === productId);
       setIsInWishlist(found);
     } else {
       setIsInWishlist(false);
     }
   }, [wishlistItems, productId]);
 
-  // ✅ Component Mount လုပ်တဲ့အခါ Wishlist ကို Fetch လုပ်ပါ
+  // Load wishlist on mount
   useEffect(() => {
     if (isAuthenticated) {
       dispatch(getWishlist());
@@ -75,7 +91,6 @@ const ProductCard = ({ product }) => {
     e.stopPropagation();
 
     if (!isAuthenticated) {
-      // Redirect to login
       return;
     }
 
@@ -87,7 +102,6 @@ const ProductCard = ({ product }) => {
         await dispatch(addToWishlist(productId)).unwrap();
         setIsInWishlist(true);
       }
-      // ✅ Wishlist ကို ပြန် Fetch လုပ်ပါ (state ကို sync လုပ်ဖို့)
       await dispatch(getWishlist());
     } catch (error) {
       console.error('Wishlist error:', error);

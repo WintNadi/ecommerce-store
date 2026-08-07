@@ -1,8 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate, useParams, Link } from 'react-router-dom';
-import { createProduct, getProduct, updateProduct, clearProductError } from '../../store/slices/productSlice';
-import { ArrowLeft, Loader2, Plus, X, Image } from 'lucide-react';
+import { 
+  createProduct, 
+  getProduct, 
+  updateProduct, 
+  clearProductError,
+  clearProductSuccess,
+  getProducts
+} from '../../store/slices/productSlice';
+import { getCategories } from '../../store/slices/categorySlice';
+import { ArrowLeft, Loader2, Plus, X } from 'lucide-react';
+import ErrorMessage from '../../components/common/ErrorMessage';
 
 const ProductFormPage = () => {
   const { id } = useParams();
@@ -10,6 +19,7 @@ const ProductFormPage = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const { isLoading, error, product, success } = useSelector((state) => state.products);
+  const { categories } = useSelector((state) => state.categories);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -32,6 +42,11 @@ const ProductFormPage = () => {
 
   const [newImage, setNewImage] = useState('');
   const [newTag, setNewTag] = useState('');
+
+  // Fetch categories
+  useEffect(() => {
+    dispatch(getCategories());
+  }, [dispatch]);
 
   useEffect(() => {
     if (isEdit && id) {
@@ -64,9 +79,17 @@ const ProductFormPage = () => {
 
   useEffect(() => {
     if (success) {
-      navigate('/admin/products');
+      dispatch(getProducts({ page: 1, limit: 10 }));
+      dispatch(clearProductSuccess());
+      
+      const currentPath = window.location.pathname;
+      if (currentPath.includes('/admin')) {
+        navigate('/admin/products');
+      } else {
+        navigate('/seller/products');
+      }
     }
-  }, [success, navigate]);
+  }, [success, dispatch, navigate]);
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -120,17 +143,24 @@ const ProductFormPage = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // ✅ category က empty string ဆိုရင် null ပို့ပါ
     const submitData = {
       ...formData,
       price: parseFloat(formData.price),
       comparePrice: formData.comparePrice ? parseFloat(formData.comparePrice) : undefined,
-      stock: parseInt(formData.stock)
+      stock: parseInt(formData.stock),
+      category: formData.category && formData.category.trim() !== '' ? formData.category : null
     };
 
-    if (isEdit) {
-      await dispatch(updateProduct({ id, productData: submitData })).unwrap();
-    } else {
-      await dispatch(createProduct(submitData)).unwrap();
+    try {
+      if (isEdit) {
+        await dispatch(updateProduct({ id, productData: submitData })).unwrap();
+      } else {
+        await dispatch(createProduct(submitData)).unwrap();
+      }
+    } catch (error) {
+      console.error('Failed to save product:', error);
     }
   };
 
@@ -149,7 +179,7 @@ const ProductFormPage = () => {
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-4">
             <Link
-              to="/admin/products"
+              to={window.location.pathname.includes('/admin') ? '/admin/products' : '/seller/products'}
               className="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
             >
               <ArrowLeft className="h-5 w-5" />
@@ -160,17 +190,10 @@ const ProductFormPage = () => {
           </div>
         </div>
 
-        {error && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4 dark:bg-red-900/30 dark:border-red-700 dark:text-red-300">
-            {error}
-            <button
-              onClick={() => dispatch(clearProductError())}
-              className="ml-2 text-sm font-medium hover:underline"
-            >
-              Dismiss
-            </button>
-          </div>
-        )}
+        <ErrorMessage 
+          error={error} 
+          onClear={() => dispatch(clearProductError())} 
+        />
 
         <form onSubmit={handleSubmit} className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
           <div className="space-y-6">
@@ -217,6 +240,29 @@ const ProductFormPage = () => {
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white resize-none"
                   />
                 </div>
+              </div>
+            </div>
+
+            {/* Category */}
+            <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Category</h2>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Category (Optional)
+                </label>
+                <select
+                  name="category"
+                  value={formData.category}
+                  onChange={handleChange}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
+                >
+                  <option value="">Select a category (optional)</option>
+                  {categories?.map((category) => (
+                    <option key={category._id} value={category._id}>
+                      {category.name}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
 
@@ -437,7 +483,7 @@ const ProductFormPage = () => {
                 )}
               </button>
               <Link
-                to="/admin/products"
+                to={window.location.pathname.includes('/admin') ? '/admin/products' : '/seller/products'}
                 className="flex-1 px-6 py-3 border border-gray-300 dark:border-gray-700 rounded-lg text-center hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
               >
                 Cancel

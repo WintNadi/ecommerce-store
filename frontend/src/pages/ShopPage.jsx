@@ -163,10 +163,17 @@ const ShopPage = () => {
           </div>
         ) : products && products.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {/* ✅ key prop ထည့်ပါ */}
-            {products.map((product) => (
-              <ProductCard key={product._id || product.id} product={product} />
-            ))}
+            {products.map((product) => {
+              // ✅ product._id ကိုပြန်သုံးလို့ရပြီ
+              const productId = product._id || product.id;
+              
+              if (!productId) {
+                console.warn('Product without ID:', product);
+                return null;
+              }
+              
+              return <ProductCard key={productId} product={product} />;
+            })}
           </div>
         ) : (
           <div className="text-center py-12">

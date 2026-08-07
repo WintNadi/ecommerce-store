@@ -1,14 +1,7 @@
 import mongoose from 'mongoose';
 
-/**
- * Cart Schema - E-Commerce Cart Model
- * ဈေးဝယ်တောင်းကို စီမံခန့်ခွဲမယ်
- */
 const cartSchema = new mongoose.Schema(
   {
-    // ============================================
-    // USER
-    // ============================================
     user: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
@@ -16,12 +9,9 @@ const cartSchema = new mongoose.Schema(
       unique: true,
       index: true
     },
-
-    // ============================================
-    // CART ITEMS
-    // ============================================
     items: [
       {
+        // ✅ product ကို ObjectId အနေနဲ့ သိမ်းပါ
         product: {
           type: mongoose.Schema.Types.ObjectId,
           ref: 'Product',
@@ -57,10 +47,6 @@ const cartSchema = new mongoose.Schema(
         }
       }
     ],
-
-    // ============================================
-    // PRICING
-    // ============================================
     subtotal: {
       type: Number,
       default: 0
@@ -86,18 +72,10 @@ const cartSchema = new mongoose.Schema(
       type: Number,
       default: 0
     },
-
-    // ============================================
-    // COUPON
-    // ============================================
     couponId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Coupon'
     },
-
-    // ============================================
-    // META DATA
-    // ============================================
     lastActive: {
       type: Date,
       default: Date.now
@@ -112,45 +90,27 @@ const cartSchema = new mongoose.Schema(
   }
 );
 
-// ============================================
-// INDEXES FOR PERFORMANCE
-// ============================================
-
+// Indexes
 cartSchema.index({ user: 1 });
 cartSchema.index({ isAbandoned: 1, lastActive: -1 });
 cartSchema.index({ 'items.product': 1 });
 
-// ============================================
-// PRE-SAVE MIDDLEWARE
-// ============================================
-
+// Pre-save middleware
 cartSchema.pre('save', function (next) {
-  // Calculate subtotal
   let subtotal = 0;
   this.items.forEach(item => {
     item.totalPrice = item.price * item.quantity;
     subtotal += item.totalPrice;
   });
   this.subtotal = subtotal;
-
-  // Calculate total
-  const total = subtotal + this.taxAmount + this.shippingAmount - this.discountAmount - this.couponDiscount;
-  this.totalPrice = Math.round(total * 100) / 100;
-
-  // Update last active
+  this.totalPrice = subtotal + this.taxAmount + this.shippingAmount - this.discountAmount - this.couponDiscount;
   this.lastActive = new Date();
-
   next();
 });
 
-// ============================================
-// INSTANCE METHODS
-// ============================================
-
-/**
- * Add item to cart
- */
+// Instance methods
 cartSchema.methods.addItem = async function (product, quantity = 1, variation = null) {
+  // ✅ product._id ကို သိမ်းပါ
   const existingItem = this.items.find(
     item =>
       item.product.toString() === product._id.toString() &&
@@ -177,27 +137,21 @@ cartSchema.methods.addItem = async function (product, quantity = 1, variation = 
   return this.save();
 };
 
-/**
- * Remove item from cart
- */
 cartSchema.methods.removeItem = async function (productId, variation = null) {
+  // ✅ productId ကို String အနေနဲ့ နှိုင်းယှဉ်ပါ
   this.items = this.items.filter(
     item =>
-      !(
-        item.product.toString() === productId &&
-        JSON.stringify(item.variation) === JSON.stringify(variation)
-      )
+      !(item.product.toString() === productId.toString() &&
+        JSON.stringify(item.variation) === JSON.stringify(variation))
   );
   return this.save();
 };
 
-/**
- * Update item quantity
- */
 cartSchema.methods.updateQuantity = async function (productId, quantity, variation = null) {
+  // ✅ productId ကို String အနေနဲ့ နှိုင်းယှဉ်ပါ
   const item = this.items.find(
     item =>
-      item.product.toString() === productId &&
+      item.product.toString() === productId.toString() &&
       JSON.stringify(item.variation) === JSON.stringify(variation)
   );
 
@@ -215,17 +169,11 @@ cartSchema.methods.updateQuantity = async function (productId, quantity, variati
   return this.save();
 };
 
-/**
- * Clear cart
- */
 cartSchema.methods.clearCart = async function () {
   this.items = [];
   return this.save();
 };
 
-/**
- * Get cart summary
- */
 cartSchema.methods.getSummary = function () {
   return {
     totalItems: this.items.reduce((total, item) => total + item.quantity, 0),
@@ -237,49 +185,11 @@ cartSchema.methods.getSummary = function () {
   };
 };
 
-/**
- * Check if cart is empty
- */
 cartSchema.methods.isEmpty = function () {
   return this.items.length === 0;
 };
 
-/**
- * Apply coupon
- */
-cartSchema.methods.applyCoupon = async function (coupon) {
-  // Validate coupon logic here
-  this.couponCode = coupon.code;
-  this.couponDiscount = coupon.discountAmount || 0;
-  this.couponId = coupon._id;
-  return this.save();
-};
-
-/**
- * Remove coupon
- */
-cartSchema.methods.removeCoupon = async function () {
-  this.couponCode = undefined;
-  this.couponDiscount = 0;
-  this.couponId = undefined;
-  return this.save();
-};
-
-/**
- * Mark cart as abandoned
- */
-cartSchema.methods.markAsAbandoned = async function () {
-  this.isAbandoned = true;
-  return this.save();
-};
-
-// ============================================
-// STATIC METHODS
-// ============================================
-
-/**
- * Get or create cart for user
- */
+// Static methods
 cartSchema.statics.getOrCreateCart = async function (userId) {
   let cart = await this.findOne({ user: userId });
 
@@ -291,9 +201,6 @@ cartSchema.statics.getOrCreateCart = async function (userId) {
   return cart;
 };
 
-/**
- * Get abandoned carts (older than 24 hours)
- */
 cartSchema.statics.getAbandonedCarts = async function () {
   const threshold = new Date();
   threshold.setHours(threshold.getHours() - 24);
@@ -305,38 +212,7 @@ cartSchema.statics.getAbandonedCarts = async function () {
   }).populate('user', 'name email');
 };
 
-/**
- * Get cart statistics
- */
-cartSchema.statics.getStats = async function () {
-  const stats = await this.aggregate([
-    {
-      $group: {
-        _id: null,
-        totalCarts: { $sum: 1 },
-        totalItems: { $sum: { $size: '$items' } },
-        averageItems: { $avg: { $size: '$items' } },
-        abandonedCarts: {
-          $sum: { $cond: ['$isAbandoned', 1, 0] }
-        },
-        totalValue: { $sum: '$totalPrice' }
-      }
-    }
-  ]);
-
-  return stats[0] || {
-    totalCarts: 0,
-    totalItems: 0,
-    averageItems: 0,
-    abandonedCarts: 0,
-    totalValue: 0
-  };
-};
-
-// ============================================
-// VIRTUAL PROPERTIES
-// ============================================
-
+// Virtual properties
 cartSchema.virtual('itemCount').get(function () {
   return this.items.reduce((total, item) => total + item.quantity, 0);
 });
@@ -345,10 +221,7 @@ cartSchema.virtual('hasItems').get(function () {
   return this.items.length > 0;
 });
 
-// ============================================
-// TOJSON TRANSFORM
-// ============================================
-
+// ToJSON transform
 cartSchema.set('toJSON', {
   virtuals: true,
   transform: function (doc, ret) {
@@ -358,10 +231,6 @@ cartSchema.set('toJSON', {
     return ret;
   }
 });
-
-// ============================================
-// EXPORT MODEL
-// ============================================
 
 const Cart = mongoose.model('Cart', cartSchema);
 export default Cart;

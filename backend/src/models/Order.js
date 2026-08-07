@@ -1,34 +1,19 @@
 import mongoose from 'mongoose';
 
-/**
- * Order Schema - E-Commerce Order Model
- * အော်ဒါများကို စီမံခန့်ခွဲမယ်
- */
 const orderSchema = new mongoose.Schema(
   {
-    // ============================================
-    // ORDER IDENTIFIERS
-    // ============================================
     orderNumber: {
       type: String,
-      required: true,
+      // ❌ required: true, // ဒါကိုဖယ်ပါ
       unique: true,
       index: true
     },
-
-    // ============================================
-    // USER
-    // ============================================
     user: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
       required: true,
       index: true
     },
-
-    // ============================================
-    // ORDER ITEMS
-    // ============================================
     orderItems: [
       {
         product: {
@@ -61,10 +46,6 @@ const orderSchema = new mongoose.Schema(
         }
       }
     ],
-
-    // ============================================
-    // SHIPPING
-    // ============================================
     shippingAddress: {
       street: {
         type: String,
@@ -101,11 +82,6 @@ const orderSchema = new mongoose.Schema(
       type: Number,
       default: 0
     },
-    estimatedDelivery: Date,
-
-    // ============================================
-    // PAYMENT
-    // ============================================
     paymentMethod: {
       type: String,
       enum: ['stripe', 'paypal', 'cod', 'bank_transfer'],
@@ -124,10 +100,6 @@ const orderSchema = new mongoose.Schema(
       paymentIntent: String
     },
     paidAt: Date,
-
-    // ============================================
-    // PRICING
-    // ============================================
     subtotal: {
       type: Number,
       required: true
@@ -149,28 +121,20 @@ const orderSchema = new mongoose.Schema(
       type: Number,
       required: true
     },
-
-    // ============================================
-    // ORDER STATUS
-    // ============================================
     status: {
       type: String,
       enum: [
-        'pending',      // အော်ဒါတင်ပြီး
-        'processing',   // စီမံဆောင်ရွက်နေတယ်
-        'confirmed',    // အတည်ပြုပြီး
-        'shipped',      // ပို့ဆောင်ပြီး
-        'delivered',    // ရောက်ရှိပြီး
-        'cancelled',    // ဖျက်သိမ်းပြီး
-        'refunded'      // ပြန်အမ်းပြီး
+        'pending',
+        'processing',
+        'confirmed',
+        'shipped',
+        'delivered',
+        'cancelled',
+        'refunded'
       ],
       default: 'pending',
       index: true
     },
-
-    // ============================================
-    // TRACKING (Wow Feature: Order Tracking)
-    // ============================================
     trackingNumber: String,
     trackingProvider: String,
     trackingUrl: String,
@@ -196,10 +160,6 @@ const orderSchema = new mongoose.Schema(
       }
     ],
     trackingLastUpdate: Date,
-
-    // ============================================
-    // TIMELINE (Order History)
-    // ============================================
     timeline: [
       {
         status: {
@@ -221,37 +181,20 @@ const orderSchema = new mongoose.Schema(
         }
       }
     ],
-
-    // ============================================
-    // DELIVERY
-    // ============================================
     deliveredAt: Date,
-    deliveryNotes: String,
     isDelivered: {
       type: Boolean,
       default: false
     },
-
-    // ============================================
-    // CANCELLATION
-    // ============================================
     cancellationReason: String,
     cancelledAt: Date,
     cancelledBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User'
     },
-
-    // ============================================
-    // REFUND
-    // ============================================
     refundAmount: Number,
     refundReason: String,
     refundedAt: Date,
-
-    // ============================================
-    // META DATA
-    // ============================================
     notes: String,
     ipAddress: String,
     userAgent: String,
@@ -266,27 +209,21 @@ const orderSchema = new mongoose.Schema(
 );
 
 // ============================================
-// INDEXES FOR PERFORMANCE
+// INDEXES
 // ============================================
 
 orderSchema.index({ user: 1, createdAt: -1 });
 orderSchema.index({ status: 1, createdAt: -1 });
-orderSchema.index({ orderNumber: 1 }, { unique: true });
+orderSchema.index({ orderNumber: 1 }, { unique: true, sparse: true });
 orderSchema.index({ trackingNumber: 1 }, { sparse: true });
-orderSchema.index({ 'shippingAddress.city': 1 });
-orderSchema.index({ paymentStatus: 1 });
 orderSchema.index({ createdAt: -1 });
-
-// Compound indexes
-orderSchema.index({ user: 1, status: 1, createdAt: -1 });
-orderSchema.index({ status: 1, paymentStatus: 1 });
 
 // ============================================
 // PRE-SAVE MIDDLEWARE
 // ============================================
 
 orderSchema.pre('save', function (next) {
-  // Generate order number if not exists
+  // ✅ Generate order number if not exists
   if (!this.orderNumber) {
     const date = new Date();
     const year = date.getFullYear();
@@ -329,9 +266,6 @@ orderSchema.pre('save', function (next) {
 // INSTANCE METHODS
 // ============================================
 
-/**
- * Add tracking update
- */
 orderSchema.methods.addTrackingUpdate = function (status, location, description) {
   this.trackingHistory.push({
     status,
@@ -343,9 +277,6 @@ orderSchema.methods.addTrackingUpdate = function (status, location, description)
   return this.save();
 };
 
-/**
- * Update order status
- */
 orderSchema.methods.updateStatus = async function (newStatus, note = '') {
   const validTransitions = {
     pending: ['processing', 'cancelled'],
@@ -369,30 +300,18 @@ orderSchema.methods.updateStatus = async function (newStatus, note = '') {
   return this.save();
 };
 
-/**
- * Check if order can be cancelled
- */
 orderSchema.methods.canCancel = function () {
   return ['pending', 'processing'].includes(this.status);
 };
 
-/**
- * Check if order can be refunded
- */
 orderSchema.methods.canRefund = function () {
   return ['delivered', 'shipped'].includes(this.status);
 };
 
-/**
- * Calculate total items
- */
 orderSchema.methods.getTotalItems = function () {
   return this.orderItems.reduce((total, item) => total + item.quantity, 0);
 };
 
-/**
- * Get order summary
- */
 orderSchema.methods.getSummary = function () {
   return {
     orderNumber: this.orderNumber,
@@ -412,9 +331,6 @@ orderSchema.methods.getSummary = function () {
 // STATIC METHODS
 // ============================================
 
-/**
- * Get user orders
- */
 orderSchema.statics.getUserOrders = function (userId, options = {}) {
   const { limit = 20, page = 1, status } = options;
 
@@ -428,9 +344,6 @@ orderSchema.statics.getUserOrders = function (userId, options = {}) {
     .populate('orderItems.product', 'name slug images');
 };
 
-/**
- * Get order statistics
- */
 orderSchema.statics.getStats = async function (options = {}) {
   const match = {};
   if (options.startDate) match.createdAt = { $gte: options.startDate };
@@ -475,9 +388,6 @@ orderSchema.statics.getStats = async function (options = {}) {
   };
 };
 
-/**
- * Get daily order stats
- */
 orderSchema.statics.getDailyStats = async function (days = 7) {
   const startDate = new Date();
   startDate.setDate(startDate.getDate() - days);

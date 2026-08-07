@@ -59,11 +59,13 @@ export const addToCart = asyncHandler(async (req, res) => {
     cart = new Cart({ user: req.user._id, items: [] });
   }
 
-  const existingItem = cart.items.find(
-    item =>
-      item.product.toString() === productId &&
-      JSON.stringify(item.variation) === JSON.stringify(variation)
-  );
+  // ✅ productId ကို String အနေနဲ့ နှိုင်းယှဉ်ပါ
+  const productIdStr = String(productId);
+  
+  const existingItem = cart.items.find(item => {
+    const itemProductId = item.product ? String(item.product) : '';
+    return itemProductId === productIdStr;
+  });
 
   if (existingItem) {
     existingItem.quantity += quantity;
@@ -111,6 +113,7 @@ export const updateCartItem = asyncHandler(async (req, res) => {
     throw new AppError('Invalid quantity', 400);
   }
 
+  // Product ကို ID နဲ့ရှာပါ
   const product = await Product.findById(productId);
 
   if (!product) {
@@ -123,11 +126,21 @@ export const updateCartItem = asyncHandler(async (req, res) => {
     throw new AppError('Cart not found', 404);
   }
 
-  const itemIndex = cart.items.findIndex(
-    item =>
-      item.product.toString() === productId &&
-      JSON.stringify(item.variation) === JSON.stringify(variation)
-  );
+  // ✅ productId ကို String အနေနဲ့ နှိုင်းယှဉ်ပါ
+  const productIdStr = String(productId);
+  
+  console.log('updateCartItem - productId:', productIdStr);
+  console.log('updateCartItem - cart items:', cart.items.map(item => ({
+    product: item.product ? String(item.product) : '',
+    quantity: item.quantity
+  })));
+
+  const itemIndex = cart.items.findIndex(item => {
+    const itemProductId = item.product ? String(item.product) : '';
+    return itemProductId === productIdStr;
+  });
+
+  console.log('updateCartItem - itemIndex:', itemIndex);
 
   if (itemIndex === -1) {
     throw new AppError('Item not found in cart', 404);
@@ -172,13 +185,21 @@ export const removeFromCart = asyncHandler(async (req, res) => {
     throw new AppError('Cart not found', 404);
   }
 
-  const parsedVariation = variation ? JSON.parse(variation) : undefined;
+  // ✅ productId ကို String အနေနဲ့ နှိုင်းယှဉ်ပါ
+  const productIdStr = String(productId);
+  
+  console.log('removeFromCart - productId:', productIdStr);
+  console.log('removeFromCart - cart items:', cart.items.map(item => ({
+    product: item.product ? String(item.product) : '',
+    quantity: item.quantity
+  })));
 
-  const itemIndex = cart.items.findIndex(
-    item =>
-      item.product.toString() === productId &&
-      JSON.stringify(item.variation) === JSON.stringify(parsedVariation)
-  );
+  const itemIndex = cart.items.findIndex(item => {
+    const itemProductId = item.product ? String(item.product) : '';
+    return itemProductId === productIdStr;
+  });
+
+  console.log('removeFromCart - itemIndex:', itemIndex);
 
   if (itemIndex === -1) {
     throw new AppError('Item not found in cart', 404);
@@ -255,7 +276,6 @@ export const applyCoupon = asyncHandler(async (req, res) => {
   }
 
   // TODO: Implement coupon validation with Coupon model
-  // For now, simulate a coupon
   const coupon = {
     code: couponCode,
     discountAmount: 10,
@@ -265,8 +285,6 @@ export const applyCoupon = asyncHandler(async (req, res) => {
   cart.couponCode = coupon.code;
   cart.couponDiscount = coupon.discountAmount;
   cart.discountAmount = coupon.discountAmount;
-
-  // Recalculate total
   cart.totalPrice = cart.subtotal - cart.discountAmount - cart.couponDiscount;
 
   await cart.save();
@@ -331,11 +349,12 @@ export const mergeGuestCart = asyncHandler(async (req, res) => {
       continue;
     }
 
-    const existingItem = userCart.items.find(
-      item =>
-        item.product.toString() === productId &&
-        JSON.stringify(item.variation) === JSON.stringify(variation)
-    );
+    const productIdStr = String(productId);
+    
+    const existingItem = userCart.items.find(item => {
+      const itemProductId = item.product ? String(item.product) : '';
+      return itemProductId === productIdStr;
+    });
 
     if (existingItem) {
       const newQuantity = existingItem.quantity + quantity;
@@ -359,7 +378,6 @@ export const mergeGuestCart = asyncHandler(async (req, res) => {
     }
   }
 
-  // Recalculate totals
   let subtotal = 0;
   userCart.items.forEach(item => {
     subtotal += item.totalPrice;
@@ -413,11 +431,12 @@ export const bulkAddToCart = asyncHandler(async (req, res) => {
         continue;
       }
 
-      const existingItem = cart.items.find(
-        cartItem =>
-          cartItem.product.toString() === productId &&
-          JSON.stringify(cartItem.variation) === JSON.stringify(variation)
-      );
+      const productIdStr = String(productId);
+      
+      const existingItem = cart.items.find(cartItem => {
+        const itemProductId = cartItem.product ? String(cartItem.product) : '';
+        return itemProductId === productIdStr;
+      });
 
       if (existingItem) {
         existingItem.quantity += quantity;
@@ -441,7 +460,6 @@ export const bulkAddToCart = asyncHandler(async (req, res) => {
     }
   }
 
-  // Recalculate totals
   let subtotal = 0;
   cart.items.forEach(item => {
     subtotal += item.totalPrice;

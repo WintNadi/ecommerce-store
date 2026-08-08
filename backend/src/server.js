@@ -1,5 +1,3 @@
-<<<<<<< Updated upstream
-=======
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -20,6 +18,7 @@ import orderRoutes from './routes/orderRoutes.js';
 import cartRoutes from './routes/cartRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
 import categoryRoutes from './routes/categoryRoutes.js';
+
 import paymentRoutes from './routes/paymentRoutes.js';
 
 // Import Middleware
@@ -332,4 +331,3 @@ startServer();
 
 // Export app for testing
 export default app;
->>>>>>> Stashed changes

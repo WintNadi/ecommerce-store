@@ -1,5 +1,3 @@
-<<<<<<< Updated upstream
-=======
 import mongoose from 'mongoose';
 
 const orderSchema = new mongoose.Schema(
@@ -162,12 +160,14 @@ const orderSchema = new mongoose.Schema(
       }
     ],
     trackingLastUpdate: Date,
+
     // ✅ Fixed timeline enum
     timeline: [
       {
         status: {
           type: String,
           enum: [
+
             'pending',     // ✅ Added
             'created',     // ✅ Added
             'confirmed',
@@ -252,6 +252,7 @@ orderSchema.pre('save', function (next) {
   // Add to timeline if status changed
   if (this.isModified('status')) {
     this.timeline.push({
+
       status: this.status || 'pending',
       date: new Date()
     });
@@ -457,4 +458,3 @@ orderSchema.set('toJSON', {
 
 const Order = mongoose.model('Order', orderSchema);
 export default Order;
->>>>>>> Stashed changes

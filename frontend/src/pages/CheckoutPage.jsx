@@ -1,5 +1,3 @@
-<<<<<<< Updated upstream
-=======
 import React, { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
@@ -41,7 +39,6 @@ const CheckoutPage = () => {
   );
 
   const [step, setStep] = useState(1);
-
   const [address, setAddress] = useState({
     street: '',
     city: '',
@@ -1136,4 +1133,3 @@ const OrderConfirmation = ({ order, onClose, onViewOrders }) => {
 };
 
 export default CheckoutPage;
->>>>>>> Stashed changes

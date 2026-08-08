@@ -19,6 +19,8 @@ import cartRoutes from './routes/cartRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
 import categoryRoutes from './routes/categoryRoutes.js';
 
+import paymentRoutes from './routes/paymentRoutes.js';
+
 // Import Middleware
 import { protect } from './middleware/auth.js';
 import { errorHandler } from './middleware/errorHandler.js';
@@ -74,6 +76,13 @@ io.on('connection', (socket) => {
 });
 
 // ============================================
+// ⚠️ STRIPE WEBHOOK (Must be before express.json())
+// ============================================
+
+// Stripe Webhook - Raw body required for signature verification
+app.use('/api/payments/webhook', express.raw({ type: 'application/json' }));
+
+// ============================================
 // SECURITY MIDDLEWARE
 // ============================================
 
@@ -126,10 +135,10 @@ if (process.env.NODE_ENV === 'development') {
 }
 
 // ============================================
-// RATE LIMITING (တစ်ချို့ Routes ကိုချန်လှပ်ထား)
+// RATE LIMITING (Skip Order, Auth, Cart, Payment Routes)
 // ============================================
 
-// ✅ Rate Limiter - Order Routes ကို Skip လုပ်ပါ
+// Rate Limiter - Skip order, auth, cart, and payment routes
 app.use('/api', (req, res, next) => {
   // Order routes ကို Rate Limiter မသုံးပါနဲ့
   if (req.path.startsWith('/orders')) {
@@ -137,6 +146,14 @@ app.use('/api', (req, res, next) => {
   }
   // Auth routes အတွက် သီးခြား Rate Limiter ရှိတယ်
   if (req.path.startsWith('/auth')) {
+    return next();
+  }
+  // Payment routes ကို Rate Limiter မသုံးပါနဲ့
+  if (req.path.startsWith('/payments')) {
+    return next();
+  }
+  // ✅ Cart routes ကို Rate Limiter မသုံးပါနဲ့
+  if (req.path.startsWith('/cart')) {
     return next();
   }
   generalLimiter(req, res, next);
@@ -188,6 +205,7 @@ app.use('/api/categories', categoryRoutes);
 // Protected Routes
 app.use('/api/orders', protect, orderRoutes);
 app.use('/api/cart', protect, cartRoutes);
+app.use('/api/payments', paymentRoutes); // Payment Routes
 
 // Admin Routes
 app.use('/api/admin', protect, adminRoutes);
@@ -238,6 +256,7 @@ const startServer = async () => {
       console.log('  📋 Orders');
       console.log('  🏷️ Categories');
       console.log('  👑 Admin Panel');
+      console.log('  💳 Stripe Payment');
       console.log('  🔍 Smart Search');
       console.log('  📊 CSV Export');
       console.log('  📍 Order Tracking');

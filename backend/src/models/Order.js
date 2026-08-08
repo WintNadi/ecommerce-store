@@ -4,9 +4,9 @@ const orderSchema = new mongoose.Schema(
   {
     orderNumber: {
       type: String,
-      // ❌ required: true, // ဒါကိုဖယ်ပါ
       unique: true,
-      index: true
+      index: true,
+      sparse: true
     },
     user: {
       type: mongoose.Schema.Types.ObjectId,
@@ -160,12 +160,16 @@ const orderSchema = new mongoose.Schema(
       }
     ],
     trackingLastUpdate: Date,
+
+    // ✅ Fixed timeline enum
     timeline: [
       {
         status: {
           type: String,
           enum: [
-            'created',
+
+            'pending',     // ✅ Added
+            'created',     // ✅ Added
             'confirmed',
             'processing',
             'shipped',
@@ -223,7 +227,7 @@ orderSchema.index({ createdAt: -1 });
 // ============================================
 
 orderSchema.pre('save', function (next) {
-  // ✅ Generate order number if not exists
+  // Generate order number if not exists
   if (!this.orderNumber) {
     const date = new Date();
     const year = date.getFullYear();
@@ -248,7 +252,8 @@ orderSchema.pre('save', function (next) {
   // Add to timeline if status changed
   if (this.isModified('status')) {
     this.timeline.push({
-      status: this.status,
+
+      status: this.status || 'pending',
       date: new Date()
     });
   }

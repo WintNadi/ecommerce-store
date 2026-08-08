@@ -21,9 +21,9 @@ class Database {
       const conn = await mongoose.connect(process.env.MONGO_URI, {
         maxPoolSize: 10,
         minPoolSize: 2,
-        serverSelectionTimeoutMS: 5000,
+        serverSelectionTimeoutMS: 30000,  // ← KEPT feature/payment (30s)
         socketTimeoutMS: 45000,
-        connectTimeoutMS: 10000,
+        connectTimeoutMS: 30000,          // ← KEPT feature/payment (30s)
         retryWrites: true,
         retryReads: true,
         family: 4,

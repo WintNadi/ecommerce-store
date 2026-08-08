@@ -7,3 +7,7 @@
 ".DS_Store" 
 "*.log" 
 "*.backup" 
+"package-lock.json" 
+"backend/package-lock.json" 
+"frontend/package-lock.json" 
+"*.lock" 

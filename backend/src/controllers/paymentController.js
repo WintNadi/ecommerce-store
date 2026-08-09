@@ -4,11 +4,11 @@ import { asyncHandler } from '../middleware/errorHandler.js';
 import { AppError } from '../middleware/errorHandler.js';
 
 // ============================================
-// CREATE PAYMENT INTENT
+// CREATE PAYMENT INTENT (WITH ORDER)
 // ============================================
 
 /**
- * @desc    Create a payment intent for Stripe
+ * @desc    Create a payment intent for Stripe (with existing order)
  * @route   POST /api/payments/create-payment-intent
  * @access  Private
  */
@@ -45,7 +45,8 @@ export const createPaymentIntent = asyncHandler(async (req, res) => {
       metadata: {
         orderId: order._id.toString(),
         userId: req.user._id.toString(),
-        orderNumber: order.orderNumber
+        orderNumber: order.orderNumber,
+        type: 'with_order'
       },
       receipt_email: req.user.email,
       description: `Order #${order.orderNumber}`,
@@ -71,6 +72,74 @@ export const createPaymentIntent = asyncHandler(async (req, res) => {
       paymentIntent: paymentIntent.client_secret
     };
     await order.save();
+
+    res.status(200).json({
+      success: true,
+      data: {
+        clientSecret: paymentIntent.client_secret,
+        paymentIntentId: paymentIntent.id,
+        amount: paymentIntent.amount / 100,
+        currency: paymentIntent.currency
+      }
+    });
+  } catch (error) {
+    console.error('❌ Stripe error:', error);
+    throw new AppError(`Payment initialization failed: ${error.message}`, 500);
+  }
+});
+
+// ============================================
+// ✅ NEW: CREATE PAYMENT INTENT WITHOUT ORDER
+// ============================================
+
+/**
+ * @desc    Create a payment intent WITHOUT creating an order first
+ * @route   POST /api/payments/create-payment-intent-without-order
+ * @access  Private
+ * 
+ * This creates a payment intent that is NOT linked to an order.
+ * The order will be created AFTER successful payment.
+ * This prevents unpaid orders from being saved in the database.
+ */
+export const createPaymentIntentWithoutOrder = asyncHandler(async (req, res) => {
+  const { amount, currency, metadata } = req.body;
+
+  console.log('📝 Creating payment intent WITHOUT order');
+  console.log('💰 Amount:', amount / 100, 'USD');
+
+  // Validate amount
+  if (!amount || amount <= 0) {
+    console.error('❌ Invalid amount:', amount);
+    throw new AppError('Invalid amount', 400);
+  }
+
+  try {
+    // Create payment intent WITHOUT creating an order
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: Math.round(amount), // amount in cents
+      currency: currency || 'usd',
+      metadata: {
+        ...metadata,
+        userId: req.user._id.toString(),
+        email: req.user.email,
+        type: 'without_order' // Flag to identify this type
+      },
+      receipt_email: req.user.email,
+      description: `Payment for order`,
+      shipping: {
+        name: req.user.name,
+        address: {
+          line1: metadata?.street || '',
+          city: metadata?.city || '',
+          state: metadata?.state || '',
+          postal_code: metadata?.zipCode || '',
+          country: metadata?.country || 'Myanmar'
+        }
+      }
+    });
+
+    console.log('✅ Payment intent created (no order):', paymentIntent.id);
+    console.log('💰 Amount:', paymentIntent.amount / 100, 'USD');
 
     res.status(200).json({
       success: true,
@@ -168,7 +237,7 @@ export const confirmPayment = asyncHandler(async (req, res) => {
 });
 
 // ============================================
-// STRIPE WEBHOOK (Optional - Not used currently)
+// STRIPE WEBHOOK
 // ============================================
 
 /**
@@ -233,6 +302,11 @@ export const stripeWebhook = asyncHandler(async (req, res) => {
               });
             }
           }
+        } else {
+          // ✅ Handle payment without order (new flow)
+          console.log('ℹ️ Payment intent without order:', paymentIntent.id);
+          // You can store this in a temporary collection or just log it
+          // The order will be created from the frontend onSuccess callback
         }
         break;
       }
@@ -386,4 +460,90 @@ export const refundPayment = asyncHandler(async (req, res) => {
   } else {
     throw new AppError('No payment found to refund', 404);
   }
+});
+
+// ============================================
+// ✅ NEW: CREATE ORDER AFTER PAYMENT
+// ============================================
+
+/**
+ * @desc    Create order after successful payment
+ * @route   POST /api/payments/create-order-after-payment
+ * @access  Private
+ * 
+ * This is called from the frontend after payment succeeds.
+ * It creates the order with the payment details.
+ */
+export const createOrderAfterPayment = asyncHandler(async (req, res) => {
+  const { 
+    paymentIntentId, 
+    shippingAddress, 
+    shippingMethod, 
+    items, 
+    totalPrice,
+    subtotal,
+    taxAmount
+  } = req.body;
+
+  console.log('📝 Creating order after payment:', paymentIntentId);
+
+  // Verify the payment intent
+  const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+
+  if (paymentIntent.status !== 'succeeded') {
+    throw new AppError('Payment not successful', 400);
+  }
+
+  // Create the order
+  const order = new Order({
+    user: req.user._id,
+    orderItems: items.map(item => ({
+      product: item._id,
+      name: item.name,
+      price: item.price,
+      quantity: item.quantity,
+      image: item.image
+    })),
+    shippingAddress,
+    paymentMethod: 'stripe',
+    shippingMethod,
+    taxPrice: taxAmount || 0,
+    shippingPrice: shippingMethod === 'standard' ? 5.99 : shippingMethod === 'express' ? 12.99 : 25.99,
+    totalPrice: totalPrice || paymentIntent.amount / 100,
+    paymentStatus: 'paid',
+    isPaid: true,
+    paidAt: new Date(),
+    paymentResult: {
+      id: paymentIntent.id,
+      status: paymentIntent.status,
+      updateTime: paymentIntent.created,
+      emailAddress: paymentIntent.receipt_email,
+      paymentIntent: paymentIntent.client_secret
+    },
+    status: 'processing',
+    timeline: [{
+      status: 'processing',
+      note: 'Payment confirmed. Order is being processed.',
+      date: new Date()
+    }]
+  });
+
+  await order.save();
+
+  console.log('✅ Order created after payment:', order.orderNumber);
+
+  // Emit socket event
+  const io = req.app.get('io');
+  if (io) {
+    io.to(`user_${req.user._id}`).emit('payment_success', {
+      orderId: order._id,
+      orderNumber: order.orderNumber,
+      status: order.status
+    });
+  }
+
+  res.status(201).json({
+    success: true,
+    data: order
+  });
 });

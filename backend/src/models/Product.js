@@ -60,7 +60,7 @@ const productSchema = new mongoose.Schema({
     trim: true,
   }],
   
-  // ✅ Simple string array for images
+  // Simple string array for images
   images: [{
     type: String,
     default: [],
@@ -115,6 +115,9 @@ const productSchema = new mongoose.Schema({
     },
   },
   
+  // ============================================
+  // ✅ DISCOUNT FIELDS (Seller controlled)
+  // ============================================
   discount: {
     type: Number,
     default: 0,
@@ -127,6 +130,49 @@ const productSchema = new mongoose.Schema({
   discountEndDate: {
     type: Date,
   },
+  
+  // ============================================
+  // ✅ PRODUCT-SPECIFIC COUPONS (Seller controlled)
+  // ============================================
+  productCoupons: [{
+    code: {
+      type: String,
+      required: true,
+      uppercase: true,
+      trim: true,
+    },
+    discountType: {
+      type: String,
+      enum: ['percentage', 'fixed'],
+      default: 'percentage',
+    },
+    discountValue: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
+    maxUses: {
+      type: Number,
+      default: 1,
+      min: 1,
+    },
+    usedCount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    validUntil: {
+      type: Date,
+    },
+    isActive: {
+      type: Boolean,
+      default: true,
+    },
+    createdAt: {
+      type: Date,
+      default: Date.now,
+    },
+  }],
   
   rating: {
     type: Number,
@@ -183,7 +229,6 @@ const productSchema = new mongoose.Schema({
     type: Boolean,
     default: true,
   },
-  // ✅ Renamed property to hasStock (instead of isInStock)
   hasStock: {
     type: Boolean,
     default: true,
@@ -228,11 +273,84 @@ productSchema.pre('save', function(next) {
       .replace(/^-|-$/g, '');
   }
   
-  // ✅ Update hasStock based on stock
+  // Update hasStock based on stock
   this.hasStock = this.stock > 0;
+  
+  // ✅ Validate discount dates
+  if (this.discountStartDate && this.discountEndDate) {
+    if (this.discountStartDate > this.discountEndDate) {
+      return next(new Error('Discount start date must be before end date'));
+    }
+  }
   
   next();
 });
+
+// ============================================
+// ✅ VIRTUAL: Check if discount is currently active
+// ============================================
+productSchema.virtual('isDiscountActive').get(function() {
+  if (!this.discount || this.discount <= 0) return false;
+  
+  const now = new Date();
+  
+  // Check if within date range
+  if (this.discountStartDate && this.discountStartDate > now) return false;
+  if (this.discountEndDate && this.discountEndDate < now) return false;
+  
+  return true;
+});
+
+// ============================================
+// ✅ VIRTUAL: Get discounted price
+// ============================================
+productSchema.virtual('discountedPrice').get(function() {
+  if (!this.isDiscountActive) return this.price;
+  return this.price * (1 - this.discount / 100);
+});
+
+// ============================================
+// ✅ INSTANCE METHOD: Check if coupon is valid
+// ============================================
+productSchema.methods.isCouponValid = function(couponCode) {
+  const coupon = this.productCoupons.find(c => c.code === couponCode.toUpperCase());
+  if (!coupon) return { valid: false, reason: 'Coupon not found' };
+  
+  if (!coupon.isActive) return { valid: false, reason: 'Coupon is inactive' };
+  if (coupon.usedCount >= coupon.maxUses) return { valid: false, reason: 'Coupon has reached maximum uses' };
+  if (coupon.validUntil && coupon.validUntil < new Date()) return { valid: false, reason: 'Coupon has expired' };
+  
+  return { valid: true, coupon };
+};
+
+// ============================================
+// ✅ INSTANCE METHOD: Use product coupon
+// ============================================
+productSchema.methods.useProductCoupon = async function(couponCode) {
+  const coupon = this.productCoupons.find(c => c.code === couponCode.toUpperCase());
+  if (!coupon) throw new Error('Coupon not found');
+  
+  const validation = this.isCouponValid(couponCode);
+  if (!validation.valid) throw new Error(validation.reason);
+  
+  coupon.usedCount += 1;
+  await this.save();
+  
+  // Calculate discount for this product
+  let discountAmount = 0;
+  if (coupon.discountType === 'percentage') {
+    discountAmount = this.price * (coupon.discountValue / 100);
+  } else {
+    discountAmount = Math.min(coupon.discountValue, this.price);
+  }
+  
+  return {
+    coupon: coupon.code,
+    discountType: coupon.discountType,
+    discountValue: coupon.discountValue,
+    discountAmount: discountAmount,
+  };
+};
 
 // ============================================
 // INDEXES
@@ -249,13 +367,15 @@ productSchema.index({ isPublished: 1 });
 productSchema.index({ isFeatured: 1 });
 productSchema.index({ createdAt: -1 });
 
+// ✅ Index for discount queries
+productSchema.index({ discount: 1, discountStartDate: 1, discountEndDate: 1 });
+
 // ============================================
 // INSTANCE METHODS
 // ============================================
 
 /**
  * Check if product is in stock for given quantity
- * ✅ Method renamed to checkStock to avoid conflict with property
  */
 productSchema.methods.checkStock = function(quantity = 1) {
   return this.stock >= quantity;
@@ -414,5 +534,9 @@ productSchema.statics.searchProducts = async function(query, options = {}) {
 
   return products;
 };
+
+// ✅ Enable virtuals when converting to JSON
+productSchema.set('toJSON', { virtuals: true });
+productSchema.set('toObject', { virtuals: true });
 
 export default mongoose.model('Product', productSchema);

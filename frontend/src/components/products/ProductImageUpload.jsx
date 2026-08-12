@@ -7,7 +7,7 @@ const ProductImageUpload = ({
   productId, 
   existingImages = [], 
   onUploadSuccess,
-  onFileSelect, // ✅ NEW: Pass selected files to parent
+  onFileSelect, // ✅ Pass selected files to parent
   isCreatingNew = false,
   maxFiles = 5,
   maxSize = 5 * 1024 * 1024 // 5MB
@@ -159,7 +159,7 @@ const ProductImageUpload = ({
         newTempUrls.splice(tempIndex, 1);
         setTempImageUrls(newTempUrls);
       }
-      // Revoke the object URL to free memory
+      // ✅ Revoke the object URL to free memory
       URL.revokeObjectURL(imageToDelete);
     }
 
@@ -302,7 +302,8 @@ const ProductImageUpload = ({
                   alt={`Product ${index + 1}`}
                   className="w-full h-32 object-cover"
                   onError={(e) => {
-                    e.target.src = 'https://via.placeholder.com/300x300?text=Invalid+Image';
+                    // ✅ Use local placeholder instead of external
+                    e.target.src = '/images/placeholder.svg';
                   }}
                 />
                 

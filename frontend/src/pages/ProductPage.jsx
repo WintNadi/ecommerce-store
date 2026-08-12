@@ -19,12 +19,22 @@ const ProductPage = () => {
     window.scrollTo(0, 0);
   }, [dispatch, id]);
 
-  // ✅ Universal image URL handler
+  // ✅ Universal image URL handler with local fallback
   const getImageUrl = (image) => {
-    if (!image) return 'https://via.placeholder.com/600x600?text=No+Image';
-    if (typeof image === 'string') return image;
-    if (image?.url) return image.url;
-    return 'https://via.placeholder.com/600x600?text=No+Image';
+    if (!image) return '/images/placeholder.svg';
+    
+    // If it's a string URL
+    if (typeof image === 'string' && image.startsWith('http')) {
+      return image;
+    }
+    
+    // If it's an object with a url property
+    if (image?.url && image.url.startsWith('http')) {
+      return image.url;
+    }
+    
+    // ✅ Use local placeholder instead of external
+    return '/images/placeholder.svg';
   };
 
   const handleAddToCart = async () => {
@@ -122,13 +132,13 @@ const ProductPage = () => {
           {/* Images */}
           <div className="space-y-4">
             <div className="relative aspect-square overflow-hidden bg-white dark:bg-gray-800 rounded-2xl shadow-sm">
-              {/* ✅ FIXED: Use getImageUrl function */}
               <img
                 src={getImageUrl(images?.[selectedImage])}
                 alt={name}
                 className="w-full h-full object-contain"
                 onError={(e) => {
-                  e.target.src = 'https://via.placeholder.com/600x600?text=No+Image';
+                  console.error('Image failed to load:', e.target.src);
+                  e.target.src = '/images/placeholder.svg';
                 }}
               />
               {isOnSale && (
@@ -160,13 +170,12 @@ const ProductPage = () => {
                         : 'border-transparent hover:border-gray-300 dark:hover:border-gray-600'
                     }`}
                   >
-                    {/* ✅ FIXED: Use getImageUrl for thumbnails */}
                     <img
                       src={getImageUrl(image)}
                       alt={`${name} ${index + 1}`}
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-cover bg-gray-100 dark:bg-gray-700"
                       onError={(e) => {
-                        e.target.src = 'https://via.placeholder.com/100x100?text=No+Image';
+                        e.target.src = '/images/placeholder.svg';
                       }}
                     />
                   </button>

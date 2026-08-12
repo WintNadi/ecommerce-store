@@ -14,7 +14,8 @@ import {
   Menu,
   X,
   Home,
-  Shield
+  Shield,
+  Tag
 } from 'lucide-react';
 import DarkModeToggle from '../common/DarkModeToggle';
 import MoodSelector from '../common/MoodSelector';
@@ -37,6 +38,8 @@ const AdminHeader = () => {
     { to: '/admin/products', label: 'Products', icon: Package },
     { to: '/admin/orders', label: 'Orders', icon: ShoppingBag },
     { to: '/admin/users', label: 'Users', icon: Users },
+    // ✅ Add Coupons link
+    { to: '/admin/coupons', label: 'Coupons', icon: Tag },
   ];
 
   return (

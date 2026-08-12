@@ -7,192 +7,172 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 // ASYNC THUNKS
 // ============================================
 
-// Get cart
+// ✅ Get cart
 export const getCart = createAsyncThunk(
-  'cart/get',
-  async (_, { getState, rejectWithValue }) => {
+  'cart/getCart',
+  async (_, { rejectWithValue }) => {
     try {
-      const { auth } = getState();
+      const token = localStorage.getItem('accessToken');
       const response = await axios.get(`${API_URL}/cart`, {
-        headers: { Authorization: `Bearer ${auth.accessToken}` }
+        headers: { Authorization: `Bearer ${token}` }
       });
-      return response.data;
+      return response.data.data;
     } catch (error) {
-      return rejectWithValue(error.response?.data || error.message);
+      return rejectWithValue(error.response?.data?.message || 'Failed to fetch cart');
     }
   }
 );
 
-// Add to cart
+// ✅ Add to cart
 export const addToCart = createAsyncThunk(
-  'cart/add',
-  async ({ productId, quantity = 1, variation }, { getState, rejectWithValue }) => {
+  'cart/addToCart',
+  async ({ productId, quantity = 1 }, { rejectWithValue }) => {
     try {
-      const { auth } = getState();
-      
-      // Validate productId
-      if (!productId) {
-        console.error('addToCart: productId is required');
-        throw new Error('Product ID is required');
-      }
-      
-      const productIdStr = typeof productId === 'string' ? productId : String(productId);
-      
+      const token = localStorage.getItem('accessToken');
       const response = await axios.post(
         `${API_URL}/cart`,
-        { productId: productIdStr, quantity, variation },
-        { headers: { Authorization: `Bearer ${auth.accessToken}` } }
+        { productId, quantity },
+        { headers: { Authorization: `Bearer ${token}` } }
       );
-      return response.data;
+      return response.data.data;
     } catch (error) {
-      return rejectWithValue(error.response?.data || error.message);
+      return rejectWithValue(error.response?.data?.message || 'Failed to add to cart');
     }
   }
 );
 
-// Update cart item
+// ✅ Update cart item
 export const updateCartItem = createAsyncThunk(
-  'cart/update',
-  async ({ productId, quantity, variation }, { getState, rejectWithValue }) => {
+  'cart/updateCartItem',
+  async ({ productId, quantity }, { rejectWithValue }) => {
     try {
-      const { auth } = getState();
-      
-      // Validate productId
-      if (!productId) {
-        console.error('updateCartItem: productId is required');
-        throw new Error('Product ID is required');
-      }
-      
-      const productIdStr = typeof productId === 'string' ? productId : String(productId);
-      
-      console.log('updateCartItem - productId:', productIdStr);
-      console.log('updateCartItem - quantity:', quantity);
-      
+      const token = localStorage.getItem('accessToken');
       const response = await axios.put(
-        `${API_URL}/cart/${productIdStr}`,
-        { quantity, variation },
-        { headers: { Authorization: `Bearer ${auth.accessToken}` } }
+        `${API_URL}/cart/${productId}`,
+        { quantity },
+        { headers: { Authorization: `Bearer ${token}` } }
       );
-      return response.data;
+      return response.data.data;
     } catch (error) {
-      console.error('updateCartItem error:', error);
-      return rejectWithValue(error.response?.data || error.message);
+      return rejectWithValue(error.response?.data?.message || 'Failed to update cart');
     }
   }
 );
 
-// Remove from cart
+// ✅ Remove from cart
 export const removeFromCart = createAsyncThunk(
-  'cart/remove',
-  async ({ productId, variation }, { getState, rejectWithValue }) => {
+  'cart/removeFromCart',
+  async (productId, { rejectWithValue }) => {
     try {
-      const { auth } = getState();
-      
-      // Validate productId
-      if (!productId) {
-        console.error('removeFromCart: productId is required');
-        throw new Error('Product ID is required');
-      }
-      
-      const productIdStr = typeof productId === 'string' ? productId : String(productId);
-      
-      console.log('removeFromCart - productId:', productIdStr);
-      console.log('removeFromCart - variation:', variation);
-      
-      const query = variation ? `?variation=${encodeURIComponent(JSON.stringify(variation))}` : '';
-      await axios.delete(`${API_URL}/cart/${productIdStr}${query}`, {
-        headers: { Authorization: `Bearer ${auth.accessToken}` }
+      const token = localStorage.getItem('accessToken');
+      const response = await axios.delete(`${API_URL}/cart/${productId}`, {
+        headers: { Authorization: `Bearer ${token}` }
       });
-      return { productId: productIdStr, variation };
+      return response.data.data;
     } catch (error) {
-      console.error('removeFromCart error:', error);
-      return rejectWithValue(error.response?.data || error.message);
+      return rejectWithValue(error.response?.data?.message || 'Failed to remove from cart');
     }
   }
 );
 
-// Clear cart
+// ✅ Clear cart
 export const clearCart = createAsyncThunk(
-  'cart/clear',
-  async (_, { getState, rejectWithValue }) => {
+  'cart/clearCart',
+  async (_, { rejectWithValue }) => {
     try {
-      const { auth } = getState();
-      await axios.delete(`${API_URL}/cart`, {
-        headers: { Authorization: `Bearer ${auth.accessToken}` }
+      const token = localStorage.getItem('accessToken');
+      const response = await axios.delete(`${API_URL}/cart`, {
+        headers: { Authorization: `Bearer ${token}` }
       });
-      return { success: true };
+      return response.data.data;
     } catch (error) {
-      return rejectWithValue(error.response?.data || error.message);
+      return rejectWithValue(error.response?.data?.message || 'Failed to clear cart');
     }
   }
 );
 
-// Apply coupon
+// ✅ Apply coupon to cart
 export const applyCoupon = createAsyncThunk(
   'cart/applyCoupon',
-  async (couponCode, { getState, rejectWithValue }) => {
+  async (couponCode, { rejectWithValue }) => {
     try {
-      const { auth } = getState();
+      const token = localStorage.getItem('accessToken');
       const response = await axios.post(
-        `${API_URL}/cart/coupon`,
+        `${API_URL}/cart/apply-coupon`,
         { couponCode },
-        { headers: { Authorization: `Bearer ${auth.accessToken}` } }
+        { headers: { Authorization: `Bearer ${token}` } }
       );
-      return response.data;
+      return response.data.data;
     } catch (error) {
-      return rejectWithValue(error.response?.data || error.message);
+      return rejectWithValue(error.response?.data?.message || 'Failed to apply coupon');
     }
   }
 );
 
-// Remove coupon
+// ✅ Remove coupon from cart
 export const removeCoupon = createAsyncThunk(
   'cart/removeCoupon',
-  async (_, { getState, rejectWithValue }) => {
+  async (_, { rejectWithValue }) => {
     try {
-      const { auth } = getState();
-      const response = await axios.delete(`${API_URL}/cart/coupon`, {
-        headers: { Authorization: `Bearer ${auth.accessToken}` }
+      const token = localStorage.getItem('accessToken');
+      const response = await axios.delete(`${API_URL}/cart/remove-coupon`, {
+        headers: { Authorization: `Bearer ${token}` }
       });
-      return response.data;
+      return response.data.data;
     } catch (error) {
-      return rejectWithValue(error.response?.data || error.message);
+      return rejectWithValue(error.response?.data?.message || 'Failed to remove coupon');
     }
   }
 );
 
-// Merge guest cart
-export const mergeGuestCart = createAsyncThunk(
-  'cart/mergeGuest',
-  async (guestCartItems, { getState, rejectWithValue }) => {
+// ✅ Apply product-specific coupon
+export const applyProductCoupon = createAsyncThunk(
+  'cart/applyProductCoupon',
+  async ({ productId, couponCode }, { rejectWithValue }) => {
     try {
-      const { auth } = getState();
+      const token = localStorage.getItem('accessToken');
       const response = await axios.post(
-        `${API_URL}/cart/merge`,
-        { guestCartItems },
-        { headers: { Authorization: `Bearer ${auth.accessToken}` } }
+        `${API_URL}/cart/apply-product-coupon`,
+        { productId, couponCode },
+        { headers: { Authorization: `Bearer ${token}` } }
       );
-      return response.data;
+      return response.data.data;
     } catch (error) {
-      return rejectWithValue(error.response?.data || error.message);
+      return rejectWithValue(error.response?.data?.message || 'Failed to apply product coupon');
     }
   }
 );
 
-// Bulk add to cart
-export const bulkAddToCart = createAsyncThunk(
-  'cart/bulkAdd',
-  async (items, { getState, rejectWithValue }) => {
+// ✅ Update shipping method
+export const updateShipping = createAsyncThunk(
+  'cart/updateShipping',
+  async ({ shippingMethod, shippingAddress }, { rejectWithValue }) => {
     try {
-      const { auth } = getState();
-      const response = await axios.post(
-        `${API_URL}/cart/bulk`,
-        { items },
-        { headers: { Authorization: `Bearer ${auth.accessToken}` } }
+      const token = localStorage.getItem('accessToken');
+      const response = await axios.put(
+        `${API_URL}/cart/shipping`,
+        { shippingMethod, shippingAddress },
+        { headers: { Authorization: `Bearer ${token}` } }
       );
-      return response.data;
+      return response.data.data;
     } catch (error) {
-      return rejectWithValue(error.response?.data || error.message);
+      return rejectWithValue(error.response?.data?.message || 'Failed to update shipping');
+    }
+  }
+);
+
+// ✅ Get cart summary
+export const getCartSummary = createAsyncThunk(
+  'cart/getCartSummary',
+  async (_, { rejectWithValue }) => {
+    try {
+      const token = localStorage.getItem('accessToken');
+      const response = await axios.get(`${API_URL}/cart/summary`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      return response.data.data;
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to get cart summary');
     }
   }
 );
@@ -206,14 +186,17 @@ const initialState = {
   subtotal: 0,
   taxAmount: 0,
   shippingAmount: 0,
+  shippingMethod: 'standard',
   discountAmount: 0,
   couponCode: null,
   couponDiscount: 0,
+  couponApplied: false,
+  productCoupons: [],
   totalPrice: 0,
   itemCount: 0,
   isLoading: false,
   error: null,
-  success: false
+  isOpen: false,
 };
 
 // ============================================
@@ -224,100 +207,44 @@ const cartSlice = createSlice({
   name: 'cart',
   initialState,
   reducers: {
+    // ✅ Open/close cart drawer
+    openCart: (state) => {
+      state.isOpen = true;
+    },
+    closeCart: (state) => {
+      state.isOpen = false;
+    },
+    toggleCart: (state) => {
+      state.isOpen = !state.isOpen;
+    },
+    
+    // ✅ Clear cart error
     clearCartError: (state) => {
       state.error = null;
     },
-    clearCartSuccess: (state) => {
-      state.success = false;
+    
+    // ✅ Update shipping method locally
+    setShippingMethod: (state, action) => {
+      state.shippingMethod = action.payload;
+      state.shippingAmount = getShippingCost(action.payload);
     },
-    resetCart: (state) => {
-      return initialState;
+    
+    // ✅ Update shipping address locally
+    setShippingAddress: (state, action) => {
+      state.shippingAddress = action.payload;
     },
-    // Local cart update (for optimistic updates)
-    localAddItem: (state, action) => {
-      const { product, quantity, variation } = action.payload;
-      const existingItem = state.items.find(
-        item =>
-          item.product === product._id &&
-          JSON.stringify(item.variation) === JSON.stringify(variation)
-      );
-
-      if (existingItem) {
-        existingItem.quantity += quantity;
-        existingItem.totalPrice = existingItem.price * existingItem.quantity;
-      } else {
-        state.items.push({
-          product: product._id,
-          name: product.name,
-          price: product.price,
-          quantity,
-          image: product.images?.[0]?.url || '',
-          variation,
-          totalPrice: product.price * quantity
-        });
-      }
-
-      // Recalculate totals
-      let subtotal = 0;
-      state.items.forEach(item => {
-        subtotal += item.totalPrice;
-      });
-      state.subtotal = subtotal;
-      state.totalPrice = subtotal + state.taxAmount + state.shippingAmount - state.discountAmount - state.couponDiscount;
-      state.itemCount = state.items.reduce((sum, item) => sum + item.quantity, 0);
+    
+    // ✅ Remove coupon locally (if API fails)
+    removeCouponLocal: (state) => {
+      state.couponCode = null;
+      state.couponDiscount = 0;
+      state.couponApplied = false;
     },
-    localRemoveItem: (state, action) => {
-      const { productId, variation } = action.payload;
-      state.items = state.items.filter(
-        item =>
-          !(item.product === productId &&
-            JSON.stringify(item.variation) === JSON.stringify(variation))
-      );
-      
-      // Recalculate totals
-      let subtotal = 0;
-      state.items.forEach(item => {
-        subtotal += item.totalPrice;
-      });
-      state.subtotal = subtotal;
-      state.totalPrice = subtotal + state.taxAmount + state.shippingAmount - state.discountAmount - state.couponDiscount;
-      state.itemCount = state.items.reduce((sum, item) => sum + item.quantity, 0);
-    },
-    localUpdateQuantity: (state, action) => {
-      const { productId, quantity, variation } = action.payload;
-      const item = state.items.find(
-        item =>
-          item.product === productId &&
-          JSON.stringify(item.variation) === JSON.stringify(variation)
-      );
-      
-      if (item) {
-        if (quantity <= 0) {
-          state.items = state.items.filter(
-            i =>
-              !(i.product === productId &&
-                JSON.stringify(i.variation) === JSON.stringify(variation))
-          );
-        } else {
-          item.quantity = quantity;
-          item.totalPrice = item.price * quantity;
-        }
-        
-        // Recalculate totals
-        let subtotal = 0;
-        state.items.forEach(i => {
-          subtotal += i.totalPrice;
-        });
-        state.subtotal = subtotal;
-        state.totalPrice = subtotal + state.taxAmount + state.shippingAmount - state.discountAmount - state.couponDiscount;
-        state.itemCount = state.items.reduce((sum, i) => sum + i.quantity, 0);
-      }
-    }
   },
   extraReducers: (builder) => {
     builder
       // ==========================================
-      // Get Cart
+      // GET CART
       // ==========================================
       .addCase(getCart.pending, (state) => {
         state.isLoading = true;
@@ -325,24 +252,26 @@ const cartSlice = createSlice({
       })
       .addCase(getCart.fulfilled, (state, action) => {
         state.isLoading = false;
-        const data = action.payload.data;
-        state.items = data.items || [];
-        state.subtotal = data.subtotal || 0;
-        state.taxAmount = data.taxAmount || 0;
-        state.shippingAmount = data.shippingAmount || 0;
-        state.discountAmount = data.discountAmount || 0;
-        state.couponCode = data.couponCode || null;
-        state.couponDiscount = data.couponDiscount || 0;
-        state.totalPrice = data.totalPrice || 0;
-        state.itemCount = data.itemCount || 0;
+        state.items = action.payload.items || [];
+        state.subtotal = action.payload.subtotal || 0;
+        state.taxAmount = action.payload.taxAmount || 0;
+        state.shippingAmount = action.payload.shippingAmount || 0;
+        state.discountAmount = action.payload.discountAmount || 0;
+        state.couponCode = action.payload.couponCode || null;
+        state.couponDiscount = action.payload.couponDiscount || 0;
+        state.couponApplied = action.payload.couponApplied || false;
+        state.productCoupons = action.payload.productCoupons || [];
+        state.totalPrice = action.payload.totalPrice || 0;
+        state.itemCount = action.payload.itemCount || 0;
+        state.shippingMethod = action.payload.shippingMethod || 'standard';
       })
       .addCase(getCart.rejected, (state, action) => {
         state.isLoading = false;
-        state.error = action.payload?.message || 'Failed to load cart';
+        state.error = action.payload || 'Failed to load cart';
       })
 
       // ==========================================
-      // Add to Cart
+      // ADD TO CART
       // ==========================================
       .addCase(addToCart.pending, (state) => {
         state.isLoading = true;
@@ -350,20 +279,22 @@ const cartSlice = createSlice({
       })
       .addCase(addToCart.fulfilled, (state, action) => {
         state.isLoading = false;
-        state.success = true;
-        const data = action.payload.data;
-        state.items = data.items || [];
-        state.subtotal = data.subtotal || 0;
-        state.totalPrice = data.totalPrice || 0;
-        state.itemCount = data.itemCount || 0;
+        state.items = action.payload.items || [];
+        state.subtotal = action.payload.subtotal || 0;
+        state.taxAmount = action.payload.taxAmount || 0;
+        state.shippingAmount = action.payload.shippingAmount || 0;
+        state.discountAmount = action.payload.discountAmount || 0;
+        state.totalPrice = action.payload.totalPrice || 0;
+        state.itemCount = action.payload.itemCount || 0;
+        state.isOpen = true;
       })
       .addCase(addToCart.rejected, (state, action) => {
         state.isLoading = false;
-        state.error = action.payload?.message || 'Failed to add to cart';
+        state.error = action.payload || 'Failed to add to cart';
       })
 
       // ==========================================
-      // Update Cart Item
+      // UPDATE CART ITEM
       // ==========================================
       .addCase(updateCartItem.pending, (state) => {
         state.isLoading = true;
@@ -371,20 +302,21 @@ const cartSlice = createSlice({
       })
       .addCase(updateCartItem.fulfilled, (state, action) => {
         state.isLoading = false;
-        state.success = true;
-        const data = action.payload.data;
-        state.items = data.items || [];
-        state.subtotal = data.subtotal || 0;
-        state.totalPrice = data.totalPrice || 0;
-        state.itemCount = data.itemCount || 0;
+        state.items = action.payload.items || [];
+        state.subtotal = action.payload.subtotal || 0;
+        state.taxAmount = action.payload.taxAmount || 0;
+        state.shippingAmount = action.payload.shippingAmount || 0;
+        state.discountAmount = action.payload.discountAmount || 0;
+        state.totalPrice = action.payload.totalPrice || 0;
+        state.itemCount = action.payload.itemCount || 0;
       })
       .addCase(updateCartItem.rejected, (state, action) => {
         state.isLoading = false;
-        state.error = action.payload?.message || 'Failed to update cart';
+        state.error = action.payload || 'Failed to update cart';
       })
 
       // ==========================================
-      // Remove from Cart
+      // REMOVE FROM CART
       // ==========================================
       .addCase(removeFromCart.pending, (state) => {
         state.isLoading = true;
@@ -392,42 +324,47 @@ const cartSlice = createSlice({
       })
       .addCase(removeFromCart.fulfilled, (state, action) => {
         state.isLoading = false;
-        state.success = true;
-        // Remove item from local state
-        state.items = state.items.filter(
-          item =>
-            !(item.product === action.payload.productId &&
-              JSON.stringify(item.variation) === JSON.stringify(action.payload.variation))
-        );
-        // Recalculate totals
-        let subtotal = 0;
-        state.items.forEach(item => {
-          subtotal += item.totalPrice;
-        });
-        state.subtotal = subtotal;
-        state.totalPrice = subtotal + state.taxAmount + state.shippingAmount - state.discountAmount - state.couponDiscount;
-        state.itemCount = state.items.reduce((sum, item) => sum + item.quantity, 0);
+        state.items = action.payload.items || [];
+        state.subtotal = action.payload.subtotal || 0;
+        state.taxAmount = action.payload.taxAmount || 0;
+        state.shippingAmount = action.payload.shippingAmount || 0;
+        state.discountAmount = action.payload.discountAmount || 0;
+        state.totalPrice = action.payload.totalPrice || 0;
+        state.itemCount = action.payload.itemCount || 0;
       })
       .addCase(removeFromCart.rejected, (state, action) => {
         state.isLoading = false;
-        state.error = action.payload?.message || 'Failed to remove from cart';
+        state.error = action.payload || 'Failed to remove from cart';
       })
 
       // ==========================================
-      // Clear Cart
+      // CLEAR CART
       // ==========================================
+      .addCase(clearCart.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
       .addCase(clearCart.fulfilled, (state) => {
+        state.isLoading = false;
         state.items = [];
         state.subtotal = 0;
-        state.totalPrice = 0;
-        state.itemCount = 0;
+        state.taxAmount = 0;
+        state.shippingAmount = 0;
+        state.discountAmount = 0;
         state.couponCode = null;
         state.couponDiscount = 0;
-        state.success = true;
+        state.couponApplied = false;
+        state.productCoupons = [];
+        state.totalPrice = 0;
+        state.itemCount = 0;
+      })
+      .addCase(clearCart.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload || 'Failed to clear cart';
       })
 
       // ==========================================
-      // Apply Coupon
+      // ✅ APPLY COUPON
       // ==========================================
       .addCase(applyCoupon.pending, (state) => {
         state.isLoading = true;
@@ -435,78 +372,168 @@ const cartSlice = createSlice({
       })
       .addCase(applyCoupon.fulfilled, (state, action) => {
         state.isLoading = false;
-        state.success = true;
-        const data = action.payload.data;
-        state.couponCode = data.couponCode || null;
-        state.couponDiscount = data.couponDiscount || 0;
-        state.totalPrice = data.totalPrice || 0;
+        state.couponCode = action.payload.coupon || action.payload.couponCode;
+        state.couponDiscount = action.payload.discountAmount || 0;
+        state.couponApplied = true;
+        state.totalPrice = action.payload.newTotal || action.payload.cart?.totalPrice || state.totalPrice;
+        if (action.payload.cart) {
+          state.items = action.payload.cart.items || [];
+          state.subtotal = action.payload.cart.subtotal || 0;
+          state.taxAmount = action.payload.cart.taxAmount || 0;
+          state.shippingAmount = action.payload.cart.shippingAmount || 0;
+          state.discountAmount = action.payload.cart.discountAmount || 0;
+          state.itemCount = action.payload.cart.itemCount || 0;
+        }
       })
       .addCase(applyCoupon.rejected, (state, action) => {
         state.isLoading = false;
-        state.error = action.payload?.message || 'Failed to apply coupon';
+        state.error = action.payload || 'Failed to apply coupon';
+        state.couponApplied = false;
       })
 
       // ==========================================
-      // Remove Coupon
+      // ✅ REMOVE COUPON
       // ==========================================
+      .addCase(removeCoupon.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
       .addCase(removeCoupon.fulfilled, (state, action) => {
+        state.isLoading = false;
         state.couponCode = null;
         state.couponDiscount = 0;
-        state.totalPrice = action.payload.data.totalPrice || state.totalPrice;
-        state.success = true;
+        state.couponApplied = false;
+        state.totalPrice = action.payload.totalPrice || state.totalPrice;
+        if (action.payload) {
+          state.items = action.payload.items || [];
+          state.subtotal = action.payload.subtotal || 0;
+          state.taxAmount = action.payload.taxAmount || 0;
+          state.shippingAmount = action.payload.shippingAmount || 0;
+          state.discountAmount = action.payload.discountAmount || 0;
+          state.itemCount = action.payload.itemCount || 0;
+        }
+      })
+      .addCase(removeCoupon.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload || 'Failed to remove coupon';
       })
 
       // ==========================================
-      // Merge Guest Cart
+      // ✅ APPLY PRODUCT COUPON
       // ==========================================
-      .addCase(mergeGuestCart.pending, (state) => {
+      .addCase(applyProductCoupon.pending, (state) => {
         state.isLoading = true;
         state.error = null;
       })
-      .addCase(mergeGuestCart.fulfilled, (state, action) => {
+      .addCase(applyProductCoupon.fulfilled, (state, action) => {
         state.isLoading = false;
-        state.success = true;
-        const data = action.payload.data;
-        state.items = data.items || [];
-        state.subtotal = data.subtotal || 0;
-        state.totalPrice = data.totalPrice || 0;
-        state.itemCount = data.itemCount || 0;
+        state.couponApplied = true;
+        if (action.payload.cart) {
+          state.items = action.payload.cart.items || [];
+          state.subtotal = action.payload.cart.subtotal || 0;
+          state.taxAmount = action.payload.cart.taxAmount || 0;
+          state.shippingAmount = action.payload.cart.shippingAmount || 0;
+          state.discountAmount = action.payload.cart.discountAmount || 0;
+          state.totalPrice = action.payload.cart.totalPrice || 0;
+          state.itemCount = action.payload.cart.itemCount || 0;
+          state.productCoupons = action.payload.cart.productCoupons || [];
+        }
       })
-      .addCase(mergeGuestCart.rejected, (state, action) => {
+      .addCase(applyProductCoupon.rejected, (state, action) => {
         state.isLoading = false;
-        state.error = action.payload?.message || 'Failed to merge cart';
+        state.error = action.payload || 'Failed to apply product coupon';
       })
 
       // ==========================================
-      // Bulk Add to Cart
+      // UPDATE SHIPPING
       // ==========================================
-      .addCase(bulkAddToCart.pending, (state) => {
+      .addCase(updateShipping.pending, (state) => {
         state.isLoading = true;
         state.error = null;
       })
-      .addCase(bulkAddToCart.fulfilled, (state, action) => {
+      .addCase(updateShipping.fulfilled, (state, action) => {
         state.isLoading = false;
-        state.success = true;
-        const data = action.payload.data;
-        state.items = data.items || [];
-        state.subtotal = data.subtotal || 0;
-        state.totalPrice = data.totalPrice || 0;
-        state.itemCount = data.itemCount || 0;
+        state.shippingMethod = action.payload.shippingMethod || 'standard';
+        state.shippingAmount = action.payload.shippingAmount || 0;
+        state.totalPrice = action.payload.totalPrice || state.totalPrice;
+        if (action.payload) {
+          state.items = action.payload.items || [];
+          state.subtotal = action.payload.subtotal || 0;
+          state.taxAmount = action.payload.taxAmount || 0;
+          state.discountAmount = action.payload.discountAmount || 0;
+          state.itemCount = action.payload.itemCount || 0;
+        }
       })
-      .addCase(bulkAddToCart.rejected, (state, action) => {
+      .addCase(updateShipping.rejected, (state, action) => {
         state.isLoading = false;
-        state.error = action.payload?.message || 'Failed to add items to cart';
+        state.error = action.payload || 'Failed to update shipping';
+      })
+
+      // ==========================================
+      // GET CART SUMMARY
+      // ==========================================
+      .addCase(getCartSummary.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(getCartSummary.fulfilled, (state, action) => {
+        state.isLoading = false;
+        state.items = action.payload.items || [];
+        state.subtotal = action.payload.subtotal || 0;
+        state.taxAmount = action.payload.taxAmount || 0;
+        state.shippingAmount = action.payload.shippingAmount || 0;
+        state.discountAmount = action.payload.discountAmount || 0;
+        state.couponCode = action.payload.couponCode || null;
+        state.couponDiscount = action.payload.couponDiscount || 0;
+        state.couponApplied = !!action.payload.couponCode;
+        state.totalPrice = action.payload.totalPrice || 0;
+        state.itemCount = action.payload.itemCount || 0;
+      })
+      .addCase(getCartSummary.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload || 'Failed to get cart summary';
       });
   }
 });
 
+// ============================================
+// HELPERS
+// ============================================
+
+const getShippingCost = (method) => {
+  const costs = {
+    standard: 5.99,
+    express: 12.99,
+    international: 25.99
+  };
+  return costs[method] || 5.99;
+};
+
+// ============================================
+// SELECTORS
+// ============================================
+
+export const selectCartItems = (state) => state.cart.items;
+export const selectCartTotal = (state) => state.cart.totalPrice;
+export const selectCartItemCount = (state) => state.cart.itemCount;
+export const selectCartSubtotal = (state) => state.cart.subtotal;
+export const selectCouponDiscount = (state) => state.cart.couponDiscount;
+export const selectIsCouponApplied = (state) => state.cart.couponApplied;
+export const selectCartLoading = (state) => state.cart.isLoading;
+export const selectCartError = (state) => state.cart.error;
+
+// ============================================
+// EXPORT ACTIONS
+// ============================================
+
 export const {
+  openCart,
+  closeCart,
+  toggleCart,
   clearCartError,
-  clearCartSuccess,
-  resetCart,
-  localAddItem,
-  localRemoveItem,
-  localUpdateQuantity
+  setShippingMethod,
+  setShippingAddress,
+  removeCouponLocal
 } = cartSlice.actions;
 
 export default cartSlice.reducer;

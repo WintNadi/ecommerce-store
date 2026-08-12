@@ -63,6 +63,32 @@ const SellerProductsPage = () => {
     }
   };
 
+  // ✅ Universal image URL handler with local fallback
+  const getImageUrl = (product) => {
+    if (!product) return '/images/placeholder.svg';
+    
+    // Check images array first
+    if (product.images && product.images.length > 0) {
+      const firstImage = product.images[0];
+      // If it's a string URL
+      if (typeof firstImage === 'string' && firstImage.startsWith('http')) {
+        return firstImage;
+      }
+      // If it's an object with a url property
+      if (firstImage?.url && firstImage.url.startsWith('http')) {
+        return firstImage.url;
+      }
+    }
+    
+    // Fallback to single image field
+    if (product.image && typeof product.image === 'string' && product.image.startsWith('http')) {
+      return product.image;
+    }
+    
+    // ✅ Use local placeholder instead of external
+    return '/images/placeholder.svg';
+  };
+
   const handlePageChange = (page) => {
     setCurrentPage(page);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -142,39 +168,19 @@ const SellerProductsPage = () => {
                   products.map((product) => {
                     const productId = product._id || product.id;
                     const stockStatus = getStockStatus(product.stock || 0);
-
-                    // ✅ FIXED: Get image URL correctly
-                    const getImageUrl = () => {
-                      // Check images array first
-                      if (product.images && product.images.length > 0) {
-                        const firstImage = product.images[0];
-                        // If it's a string, use it directly
-                        if (typeof firstImage === 'string') {
-                          return firstImage;
-                        }
-                        // If it's an object with a url property
-                        if (firstImage?.url) {
-                          return firstImage.url;
-                        }
-                      }
-                      // Fallback to single image field
-                      if (product.image) {
-                        return product.image;
-                      }
-                      // Final fallback
-                      return 'https://via.placeholder.com/50x50?text=No+Image';
-                    };
+                    const imageUrl = getImageUrl(product);
 
                     return (
                       <tr key={productId} className="border-b border-gray-100 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
                         <td className="py-3 px-4">
                           <div className="flex items-center gap-3">
                             <img
-                              src={getImageUrl()}
+                              src={imageUrl}
                               alt={product.name}
-                              className="w-12 h-12 object-cover rounded-lg"
+                              className="w-12 h-12 object-cover rounded-lg bg-gray-100 dark:bg-gray-700"
                               onError={(e) => {
-                                e.target.src = 'https://via.placeholder.com/50x50?text=No+Image';
+                                console.error('Image failed to load:', imageUrl);
+                                e.target.src = '/images/placeholder.svg';
                               }}
                             />
                             <div>

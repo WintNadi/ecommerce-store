@@ -19,6 +19,14 @@ const ProductPage = () => {
     window.scrollTo(0, 0);
   }, [dispatch, id]);
 
+  // ✅ Universal image URL handler
+  const getImageUrl = (image) => {
+    if (!image) return 'https://via.placeholder.com/600x600?text=No+Image';
+    if (typeof image === 'string') return image;
+    if (image?.url) return image.url;
+    return 'https://via.placeholder.com/600x600?text=No+Image';
+  };
+
   const handleAddToCart = async () => {
     if (!isAuthenticated) {
       // Show login modal or redirect
@@ -114,10 +122,14 @@ const ProductPage = () => {
           {/* Images */}
           <div className="space-y-4">
             <div className="relative aspect-square overflow-hidden bg-white dark:bg-gray-800 rounded-2xl shadow-sm">
+              {/* ✅ FIXED: Use getImageUrl function */}
               <img
-                src={images?.[selectedImage]?.url || 'https://via.placeholder.com/600x600?text=No+Image'}
+                src={getImageUrl(images?.[selectedImage])}
                 alt={name}
                 className="w-full h-full object-contain"
+                onError={(e) => {
+                  e.target.src = 'https://via.placeholder.com/600x600?text=No+Image';
+                }}
               />
               {isOnSale && (
                 <div className="absolute top-4 left-4 px-3 py-1 bg-red-500 text-white text-sm font-semibold rounded">
@@ -148,10 +160,14 @@ const ProductPage = () => {
                         : 'border-transparent hover:border-gray-300 dark:hover:border-gray-600'
                     }`}
                   >
+                    {/* ✅ FIXED: Use getImageUrl for thumbnails */}
                     <img
-                      src={image.url}
+                      src={getImageUrl(image)}
                       alt={`${name} ${index + 1}`}
                       className="w-full h-full object-cover"
+                      onError={(e) => {
+                        e.target.src = 'https://via.placeholder.com/100x100?text=No+Image';
+                      }}
                     />
                   </button>
                 ))}

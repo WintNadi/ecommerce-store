@@ -21,18 +21,24 @@ export const getProducts = createAsyncThunk(
   }
 );
 
-// Get single product
-export const getProduct = createAsyncThunk(
+// Get single product by ID
+export const getProductById = createAsyncThunk(
   'products/getOne',
   async (id, { rejectWithValue }) => {
     try {
+      console.log('🔍 Fetching product:', id);
       const response = await axios.get(`${API_URL}/products/${id}`);
+      console.log('📦 Product fetched:', response.data);
       return response.data;
     } catch (error) {
+      console.error('❌ Error fetching product:', error);
       return rejectWithValue(error.response?.data || error.message);
     }
   }
 );
+
+// ✅ Alias for backward compatibility
+export const getProduct = getProductById;
 
 // Create product (Admin/Seller)
 export const createProduct = createAsyncThunk(
@@ -163,7 +169,8 @@ export const getProductStats = createAsyncThunk(
 
 const initialState = {
   products: [],
-  product: null,
+  product: null,        // ✅ Used for single product
+  selectedProduct: null, // ✅ Alias for consistency (same as product)
   featuredProducts: [],
   topSelling: [],
   searchResults: [],
@@ -214,6 +221,7 @@ const productSlice = createSlice({
     },
     clearProduct: (state) => {
       state.product = null;
+      state.selectedProduct = null; // ✅ Clear both
     },
     clearSearchResults: (state) => {
       state.searchResults = [];
@@ -244,20 +252,25 @@ const productSlice = createSlice({
       })
 
       // ==========================================
-      // Get Single Product
+      // Get Single Product (getProductById)
       // ==========================================
-      .addCase(getProduct.pending, (state) => {
+      .addCase(getProductById.pending, (state) => {
         state.isLoading = true;
         state.error = null;
         state.product = null;
+        state.selectedProduct = null;
       })
-      .addCase(getProduct.fulfilled, (state, action) => {
+      .addCase(getProductById.fulfilled, (state, action) => {
         state.isLoading = false;
         state.product = action.payload.data;
+        state.selectedProduct = action.payload.data; // ✅ Set both
+        console.log('✅ Product set in state:', state.selectedProduct?.name);
       })
-      .addCase(getProduct.rejected, (state, action) => {
+      .addCase(getProductById.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload?.message || 'Product not found';
+        state.product = null;
+        state.selectedProduct = null;
       })
 
       // ==========================================
@@ -295,6 +308,7 @@ const productSlice = createSlice({
         }
         if (state.product?._id === action.payload.data._id) {
           state.product = action.payload.data;
+          state.selectedProduct = action.payload.data; // ✅ Update both
         }
       })
       .addCase(updateProduct.rejected, (state, action) => {
@@ -315,6 +329,7 @@ const productSlice = createSlice({
         state.products = state.products.filter(p => p._id !== action.payload.id);
         if (state.product?._id === action.payload.id) {
           state.product = null;
+          state.selectedProduct = null;
         }
       })
       .addCase(deleteProduct.rejected, (state, action) => {
@@ -384,6 +399,7 @@ const productSlice = createSlice({
         state.success = true;
         if (state.product) {
           state.product.reviews = action.payload.data;
+          state.selectedProduct = state.product; // ✅ Sync
         }
       })
       .addCase(addReview.rejected, (state, action) => {

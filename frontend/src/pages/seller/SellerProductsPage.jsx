@@ -143,14 +143,39 @@ const SellerProductsPage = () => {
                     const productId = product._id || product.id;
                     const stockStatus = getStockStatus(product.stock || 0);
 
+                    // ✅ FIXED: Get image URL correctly
+                    const getImageUrl = () => {
+                      // Check images array first
+                      if (product.images && product.images.length > 0) {
+                        const firstImage = product.images[0];
+                        // If it's a string, use it directly
+                        if (typeof firstImage === 'string') {
+                          return firstImage;
+                        }
+                        // If it's an object with a url property
+                        if (firstImage?.url) {
+                          return firstImage.url;
+                        }
+                      }
+                      // Fallback to single image field
+                      if (product.image) {
+                        return product.image;
+                      }
+                      // Final fallback
+                      return 'https://via.placeholder.com/50x50?text=No+Image';
+                    };
+
                     return (
                       <tr key={productId} className="border-b border-gray-100 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
                         <td className="py-3 px-4">
                           <div className="flex items-center gap-3">
                             <img
-                              src={product.images?.[0]?.url || 'https://via.placeholder.com/50x50?text=No+Image'}
+                              src={getImageUrl()}
                               alt={product.name}
                               className="w-12 h-12 object-cover rounded-lg"
+                              onError={(e) => {
+                                e.target.src = 'https://via.placeholder.com/50x50?text=No+Image';
+                              }}
                             />
                             <div>
                               <Link

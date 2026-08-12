@@ -18,23 +18,26 @@ const ProductCard = ({ product }) => {
     return null;
   }
 
-  // ✅ productId ကိုယူပါ (Backend က id ကိုပြန်ပေးတယ်)
+  // ✅ productId ကိုယူပါ
   const productId = product.id || product._id;
 
-  // ✅ productId မရှိရင် console log ပြပြီး null return လုပ်ပါ
   if (!productId) {
     console.warn('ProductCard: No product ID found. Product:', product);
     return null;
   }
 
-  // ✅ Log ထုတ်ပြီးစစ်ပါ
-  console.log('ProductCard rendering with ID:', productId);
+  // ✅ Log product data for debugging
+  console.log('📦 Product:', product.name);
+  console.log('🖼️ Images array:', product.images);
+  console.log('🖼️ Single image:', product.image);
 
+  // ✅ Extract product data with fallbacks
   const {
     name = 'Product',
     price = 0,
     comparePrice,
     images = [],
+    image = '',
     rating = 0,
     numReviews = 0,
     stock = 0,
@@ -42,6 +45,54 @@ const ProductCard = ({ product }) => {
     isPublished = false,
     isActive = false
   } = product;
+
+  // ✅ 🔥 FIXED: Get the image URL correctly
+  const getImageUrl = () => {
+    // Case 1: Try images array first
+    if (Array.isArray(images) && images.length > 0) {
+      const firstImage = images[0];
+      
+      // If the image is a string (URL)
+      if (typeof firstImage === 'string') {
+        // Ensure it has https protocol
+        if (firstImage.startsWith('http://')) {
+          return firstImage.replace('http://', 'https://');
+        }
+        return firstImage;
+      }
+      
+      // If the image is an object with a url property
+      if (typeof firstImage === 'object' && firstImage !== null && firstImage.url) {
+        if (firstImage.url.startsWith('http://')) {
+          return firstImage.url.replace('http://', 'https://');
+        }
+        return firstImage.url;
+      }
+    }
+
+    // Case 2: Try single image field
+    if (image) {
+      if (typeof image === 'string') {
+        if (image.startsWith('http://')) {
+          return image.replace('http://', 'https://');
+        }
+        return image;
+      }
+      if (typeof image === 'object' && image.url) {
+        if (image.url.startsWith('http://')) {
+          return image.url.replace('http://', 'https://');
+        }
+        return image.url;
+      }
+    }
+
+    // Final fallback
+    console.warn('⚠️ No image found for product:', productId, 'Using placeholder');
+    return 'https://via.placeholder.com/300x300?text=No+Image';
+  };
+
+  const imageUrl = getImageUrl();
+  console.log('🎨 Final image URL:', imageUrl);
 
   const discountedPrice = discount > 0 ? price * (1 - discount / 100) : price;
   const isOnSale = discount > 0;
@@ -112,11 +163,16 @@ const ProductCard = ({ product }) => {
     <div className="group relative bg-white dark:bg-gray-800 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden">
       <Link to={`/product/${productId}`} className="block">
         <div className="relative aspect-square overflow-hidden bg-gray-100 dark:bg-gray-700">
+          {/* ✅ FIXED: Use imageUrl variable directly */}
           <img
-            src={images?.[0]?.url || 'https://via.placeholder.com/300x300?text=No+Image'}
+            src={imageUrl}
             alt={name}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
             loading="lazy"
+            onError={(e) => {
+              console.error('❌ Image failed to load:', imageUrl);
+              e.target.src = 'https://via.placeholder.com/300x300?text=Image+Error';
+            }}
           />
           
           {/* Badges */}

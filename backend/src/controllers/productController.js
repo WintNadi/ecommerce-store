@@ -54,6 +54,18 @@ export const createProduct = asyncHandler(async (req, res) => {
     }
   }
 
+  // ✅ Validate discount
+  if (discount && (discount < 0 || discount > 100)) {
+    throw new AppError('Discount must be between 0 and 100%', 400);
+  }
+
+  // ✅ Validate discount dates
+  if (discountStartDate && discountEndDate) {
+    if (new Date(discountStartDate) > new Date(discountEndDate)) {
+      throw new AppError('Discount start date must be before end date', 400);
+    }
+  }
+
   // Create product
   const product = await Product.create({
     name,
@@ -123,7 +135,8 @@ export const getProducts = asyncHandler(async (req, res) => {
     isPublished = true,
     inStock,
     seller,
-    admin
+    admin,
+    onSale
   } = req.query;
 
   // Build filter
@@ -181,6 +194,20 @@ export const getProducts = asyncHandler(async (req, res) => {
     filter.isFeatured = true;
   }
 
+  // ✅ On Sale filter (products with active discount)
+  if (onSale === 'true') {
+    filter.discount = { $gt: 0 };
+    const now = new Date();
+    filter.$or = [
+      { discountStartDate: { $lte: now, $exists: true } },
+      { discountStartDate: { $exists: false } }
+    ];
+    filter.$or.push(
+      { discountEndDate: { $gte: now, $exists: true } },
+      { discountEndDate: { $exists: false } }
+    );
+  }
+
   // Search filter
   let searchQuery = {};
   if (search) {
@@ -200,9 +227,9 @@ export const getProducts = asyncHandler(async (req, res) => {
     sortQuery[sort] = 1;
   }
 
-  // ✅ FIXED: Explicitly select fields including images
+  // Execute query
   const query = Product.find({ ...filter, ...searchQuery })
-    .select('name price images image stock rating numReviews discount isPublished isActive slug seller createdAt')
+    .select('name price images image stock rating numReviews discount discountStartDate discountEndDate isPublished isActive slug seller')
     .sort(sortQuery)
     .skip(skip)
     .limit(parseInt(limit))
@@ -302,6 +329,21 @@ export const updateProduct = asyncHandler(async (req, res) => {
   // Check if user is seller of this product or admin
   if (req.user.role !== 'admin' && product.seller.toString() !== req.user._id.toString()) {
     throw new AppError('You are not authorized to update this product', 403);
+  }
+
+  // ✅ Validate discount
+  if (req.body.discount !== undefined) {
+    const discount = parseFloat(req.body.discount);
+    if (discount < 0 || discount > 100) {
+      throw new AppError('Discount must be between 0 and 100%', 400);
+    }
+  }
+
+  // ✅ Validate discount dates
+  if (req.body.discountStartDate && req.body.discountEndDate) {
+    if (new Date(req.body.discountStartDate) > new Date(req.body.discountEndDate)) {
+      throw new AppError('Discount start date must be before end date', 400);
+    }
   }
 
   // Update fields
@@ -649,5 +691,103 @@ export const searchProducts = asyncHandler(async (req, res) => {
       total,
       pages: Math.ceil(total / parseInt(limit))
     }
+  });
+});
+
+// ============================================
+// ✅ GET PRODUCT DISCOUNTS (Seller)
+// ============================================
+
+/**
+ * @desc    Get all products with active discounts for a seller
+ * @route   GET /api/products/discounts
+ * @access  Private (Seller)
+ */
+export const getSellerDiscounts = asyncHandler(async (req, res) => {
+  const { page = 1, limit = 20 } = req.query;
+
+  const filter = {
+    seller: req.user._id,
+    discount: { $gt: 0 }
+  };
+
+  const skip = (parseInt(page) - 1) * parseInt(limit);
+
+  const products = await Product.find(filter)
+    .select('name price discount discountStartDate discountEndDate images stock')
+    .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(parseInt(limit));
+
+  const total = await Product.countDocuments(filter);
+
+  res.status(200).json({
+    success: true,
+    data: products,
+    pagination: {
+      page: parseInt(page),
+      limit: parseInt(limit),
+      total,
+      pages: Math.ceil(total / parseInt(limit))
+    }
+  });
+});
+
+// ============================================
+// ✅ BULK UPDATE DISCOUNTS (Seller)
+// ============================================
+
+/**
+ * @desc    Bulk update discounts for multiple products
+ * @route   PUT /api/products/discounts/bulk
+ * @access  Private (Seller)
+ */
+export const bulkUpdateDiscounts = asyncHandler(async (req, res) => {
+  const { products } = req.body;
+
+  if (!Array.isArray(products) || products.length === 0) {
+    throw new AppError('Please provide an array of products with discounts', 400);
+  }
+
+  const updatedProducts = [];
+
+  for (const item of products) {
+    const { productId, discount, discountStartDate, discountEndDate } = item;
+
+    const product = await Product.findById(productId);
+
+    if (!product) {
+      continue; // Skip if product not found
+    }
+
+    // Check if user owns this product
+    if (product.seller.toString() !== req.user._id.toString()) {
+      continue; // Skip if not owner
+    }
+
+    // Validate discount
+    if (discount !== undefined && (discount < 0 || discount > 100)) {
+      throw new AppError(`Invalid discount for product "${product.name}"`, 400);
+    }
+
+    // Validate dates
+    if (discountStartDate && discountEndDate) {
+      if (new Date(discountStartDate) > new Date(discountEndDate)) {
+        throw new AppError(`Invalid discount dates for product "${product.name}"`, 400);
+      }
+    }
+
+    product.discount = discount || 0;
+    product.discountStartDate = discountStartDate || null;
+    product.discountEndDate = discountEndDate || null;
+
+    await product.save();
+    updatedProducts.push(product);
+  }
+
+  res.status(200).json({
+    success: true,
+    message: `${updatedProducts.length} products updated`,
+    data: updatedProducts
   });
 });

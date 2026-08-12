@@ -1,6 +1,7 @@
 import Order from '../models/Order.js';
 import Product from '../models/Product.js';
 import Cart from '../models/Cart.js';
+import Coupon from '../models/Coupon.js';
 import User from '../models/User.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { AppError } from '../middleware/errorHandler.js';
@@ -24,14 +25,14 @@ export const createOrder = asyncHandler(async (req, res) => {
     couponCode
   } = req.body;
 
-  // Get user's cart
+  // ✅ Get user's cart
   const cart = await Cart.findOne({ user: req.user._id });
 
   if (!cart || cart.items.length === 0) {
     throw new AppError('Your cart is empty. Please add items to your cart.', 400);
   }
 
-  // Check stock availability
+  // ✅ Check stock availability
   for (const item of cart.items) {
     const product = await Product.findById(item.product);
     if (!product) {
@@ -42,15 +43,18 @@ export const createOrder = asyncHandler(async (req, res) => {
     }
   }
 
-  // Calculate totals
+  // ✅ Calculate totals
   const subtotal = cart.subtotal;
   const taxPrice = cart.taxAmount || 0;
   const shippingPrice = cart.shippingAmount || 0;
   const discountAmount = cart.discountAmount || 0;
   const couponDiscount = cart.couponDiscount || 0;
-  const totalPrice = subtotal + taxPrice + shippingPrice - discountAmount - couponDiscount;
 
-  // Create order items
+  // ✅ Ensure total is not negative
+  let totalPrice = subtotal + taxPrice + shippingPrice - discountAmount - couponDiscount;
+  totalPrice = Math.max(0, totalPrice);
+
+  // ✅ Create order items
   const orderItems = cart.items.map(item => ({
     product: item.product,
     name: item.name,
@@ -59,10 +63,12 @@ export const createOrder = asyncHandler(async (req, res) => {
     quantity: item.quantity,
     image: item.image,
     variation: item.variation,
-    totalPrice: item.price * item.quantity
+    productDiscount: item.productDiscount || 0,
+    couponDiscount: item.couponDiscount || 0,
+    totalPrice: Math.max(0, (item.price * item.quantity) - (item.couponDiscount || 0))
   }));
 
-  // Create order
+  // ✅ Create order
   const order = await Order.create({
     user: req.user._id,
     orderItems,
@@ -94,19 +100,32 @@ export const createOrder = asyncHandler(async (req, res) => {
     ]
   });
 
-  // Reduce product stock
+  // ✅ Reduce product stock
   for (const item of cart.items) {
     const product = await Product.findById(item.product);
     await product.reduceStock(item.quantity);
   }
 
-  // Clear cart
+  // ✅ Record coupon usage if coupon was applied
+  if (cart.couponCode && cart.couponId) {
+    try {
+      const coupon = await Coupon.findById(cart.couponId);
+      if (coupon) {
+        await coupon.recordUsage(req.user._id, order._id, cart.couponDiscount);
+      }
+    } catch (error) {
+      console.error('Failed to record coupon usage:', error);
+    }
+  }
+
+  // ✅ Clear cart
   await cart.clearCart();
 
-  // Populate order details
+  // ✅ Populate order details
   await order.populate('user', 'name email');
+  await order.populate('orderItems.product', 'name price images');
 
-  // Emit socket event for real-time tracking
+  // ✅ Emit socket event for real-time tracking
   const io = req.app.get('io');
   if (io) {
     io.to(`user_${req.user._id}`).emit('order_created', {
@@ -189,7 +208,6 @@ export const getOrders = asyncHandler(async (req, res) => {
       select: 'name slug price images',
       options: { lean: true }
     })
-    // ✅ REMOVED: subCategory populate
     .lean();
 
   const total = await Order.countDocuments(filter);
@@ -232,7 +250,6 @@ export const getMyOrders = asyncHandler(async (req, res) => {
       select: 'name slug price images',
       options: { lean: true }
     })
-    // ✅ REMOVED: subCategory populate
     .lean();
 
   const total = await Order.countDocuments(query);
@@ -277,7 +294,6 @@ export const getOrder = asyncHandler(async (req, res) => {
       select: 'name slug price images',
       options: { lean: true }
     })
-    // ✅ REMOVED: subCategory populate
     .populate('cancelledBy', 'name email')
     .lean();
 
@@ -316,14 +332,7 @@ export const updateOrderStatus = asyncHandler(async (req, res) => {
   }
 
   // Update status
-  await order.updateStatus(status, note);
-
-  // Update timeline
-  order.timeline.push({
-    status,
-    note: note || `Order status updated to ${status}`,
-    date: new Date()
-  });
+  await order.updateStatus(status, note, req.user._id);
 
   // If status is cancelled, restore stock
   if (status === 'cancelled' && order.status !== 'cancelled') {
@@ -439,7 +448,7 @@ export const cancelOrder = asyncHandler(async (req, res) => {
     throw new AppError('You are not authorized to cancel this order', 403);
   }
 
-  if (!order.canCancel()) {
+  if (!order.canCancel) {
     throw new AppError(`Cannot cancel order in "${order.status}" status`, 400);
   }
 
@@ -498,7 +507,6 @@ export const getOrderTracking = asyncHandler(async (req, res) => {
     .select(
       'orderNumber status trackingNumber trackingProvider trackingUrl trackingHistory trackingLastUpdate shippingAddress estimatedDelivery'
     )
-    // ✅ REMOVED: subCategory populate
     .lean();
 
   if (!order) {
@@ -619,7 +627,6 @@ export const exportOrders = asyncHandler(async (req, res) => {
   const orders = await Order.find(filter)
     .populate('user', 'name email')
     .sort({ createdAt: -1 })
-    // ✅ REMOVED: subCategory populate
     .lean();
 
   if (orders.length === 0) {

@@ -9,8 +9,8 @@ import {
   getProductById,
   updateProduct,
   clearProduct
-} from '../store/slices/productSlice';
-import ProductImageUpload from '../components/products/ProductImageUpload';
+} from '../../store/slices/productSlice';
+import ProductImageUpload from '../../components/products/ProductImageUpload';
 import {
   Save,
   X,
@@ -23,7 +23,10 @@ import {
   Image,
   Box,
   AlertCircle,
-  CheckCircle
+  CheckCircle,
+  Calendar,
+  Percent,
+  Clock
 } from 'lucide-react';
 import axios from 'axios';
 
@@ -40,10 +43,12 @@ const productSchema = z.object({
   brand: z.string().optional(),
   color: z.string().optional(),
   material: z.string().optional(),
-  tags: z.array(z.string()).optional(),
+  discount: z.number().min(0).max(100).optional(),
+  discountStartDate: z.string().optional(),
+  discountEndDate: z.string().optional(),
 });
 
-const ProductForm = () => {
+const SellerProductForm = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const { id } = useParams();
@@ -67,6 +72,9 @@ const ProductForm = () => {
     material: '',
     tags: [],
     images: [],
+    discount: '',
+    discountStartDate: '',
+    discountEndDate: '',
     isPublished: false,
     isFeatured: false,
   });
@@ -76,6 +84,8 @@ const ProductForm = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState([]);
+  const [discountType, setDiscountType] = useState('percentage');
+  const [showDiscountFields, setShowDiscountFields] = useState(false);
 
   const {
     register,
@@ -83,6 +93,7 @@ const ProductForm = () => {
     formState: { errors },
     setValue,
     trigger,
+    watch,
   } = useForm({
     resolver: zodResolver(productSchema),
     defaultValues: {
@@ -94,8 +105,27 @@ const ProductForm = () => {
       brand: '',
       color: '',
       material: '',
+      discount: '',
+      discountStartDate: '',
+      discountEndDate: '',
     },
   });
+
+  // ✅ Watch discount value for display
+  const discountValue = watch('discount');
+  const priceValue = watch('price');
+
+  // ============================================
+  // CALCULATE DISCOUNTED PRICE
+  // ============================================
+  const calculateDiscountedPrice = () => {
+    if (!priceValue || !discountValue) return null;
+    const price = parseFloat(priceValue);
+    const discount = parseFloat(discountValue);
+    if (isNaN(price) || isNaN(discount) || discount <= 0) return null;
+    const discountedPrice = price * (1 - discount / 100);
+    return discountedPrice.toFixed(2);
+  };
 
   // ============================================
   // LOAD PRODUCT DATA (Edit Mode)
@@ -124,13 +154,22 @@ const ProductForm = () => {
         material: product.material || '',
         tags: product.tags || [],
         images: product.images || [],
+        discount: product.discount || '',
+        discountStartDate: product.discountStartDate ? new Date(product.discountStartDate).toISOString().split('T')[0] : '',
+        discountEndDate: product.discountEndDate ? new Date(product.discountEndDate).toISOString().split('T')[0] : '',
         isPublished: product.isPublished || false,
         isFeatured: product.isFeatured || false,
       };
 
       setFormData(data);
       setProductId(product._id);
+      
+      // Set discount visibility
+      if (product.discount && product.discount > 0) {
+        setShowDiscountFields(true);
+      }
 
+      // Set form values
       Object.keys(data).forEach((key) => {
         if (key !== 'images' && key !== 'tags' && key !== 'isPublished' && key !== 'isFeatured') {
           setValue(key, data[key]);
@@ -189,8 +228,19 @@ const ProductForm = () => {
     setSelectedFiles(files || []);
   };
 
+  const toggleDiscountFields = () => {
+    setShowDiscountFields(!showDiscountFields);
+    if (!showDiscountFields) {
+      // Reset discount values when hiding
+      setFormData((prev) => ({ ...prev, discount: '', discountStartDate: '', discountEndDate: '' }));
+      setValue('discount', '');
+      setValue('discountStartDate', '');
+      setValue('discountEndDate', '');
+    }
+  };
+
   // ============================================
-  // ✅ UPLOAD IMAGES TO SUPABASE
+  // UPLOAD IMAGES TO SUPABASE
   // ============================================
 
   const uploadImagesToSupabase = async (productIdForUpload, files) => {
@@ -232,7 +282,7 @@ const ProductForm = () => {
   };
 
   // ============================================
-  // ✅ SUBMIT - Upload images THEN save product
+  // SUBMIT
   // ============================================
 
   const onSubmit = async (data) => {
@@ -242,18 +292,16 @@ const ProductForm = () => {
     try {
       let finalImageUrls = [];
 
-      // ✅ Step 1: Filter out blob URLs from existing images
+      // ✅ Filter out blob URLs from existing images
       const existingValidImages = (formData.images || []).filter(
         (img) => img && typeof img === 'string' && !img.startsWith('blob:') && !img.startsWith('data:')
       );
 
-      // ✅ Step 2: Upload new images to Supabase
+      // ✅ Upload new images if any
       if (selectedFiles && selectedFiles.length > 0) {
         console.log('📸 Uploading new images to Supabase...');
 
-        // For edit mode, we have productId; for new products, we need to create first
         if (isEditMode && productId) {
-          // Upload to existing product
           const uploadedUrls = await uploadImagesToSupabase(productId, selectedFiles);
           finalImageUrls = [...existingValidImages, ...uploadedUrls];
         } else {
@@ -268,13 +316,15 @@ const ProductForm = () => {
             color: data.color || undefined,
             material: data.material || undefined,
             tags: formData.tags,
-            images: [], // Start with empty images
+            images: [],
+            discount: data.discount ? parseFloat(data.discount) : 0,
+            discountStartDate: data.discountStartDate || null,
+            discountEndDate: data.discountEndDate || null,
             isPublished: formData.isPublished || false,
             isFeatured: formData.isFeatured || false,
             seller: user?._id,
           };
 
-          // Create product first
           const result = await dispatch(createProduct(productData)).unwrap();
           const newProductId = result?.data?._id;
 
@@ -284,11 +334,9 @@ const ProductForm = () => {
 
           setProductId(newProductId);
 
-          // Now upload images to the new product
           const uploadedUrls = await uploadImagesToSupabase(newProductId, selectedFiles);
           finalImageUrls = uploadedUrls;
 
-          // Update product with image URLs
           if (uploadedUrls.length > 0) {
             await dispatch(updateProduct({
               id: newProductId,
@@ -305,11 +353,10 @@ const ProductForm = () => {
           return;
         }
       } else {
-        // No new images, use existing valid images
         finalImageUrls = existingValidImages;
       }
 
-      // ✅ Step 3: Prepare product data for edit mode or new product
+      // ✅ Prepare product data
       const productData = {
         name: data.name,
         description: data.description,
@@ -321,12 +368,15 @@ const ProductForm = () => {
         material: data.material || undefined,
         tags: formData.tags,
         images: finalImageUrls,
+        discount: data.discount ? parseFloat(data.discount) : 0,
+        discountStartDate: data.discountStartDate || null,
+        discountEndDate: data.discountEndDate || null,
         isPublished: formData.isPublished || false,
         isFeatured: formData.isFeatured || false,
         seller: user?._id,
       };
 
-      // ✅ Step 4: Create or update product
+      // ✅ Create or update product
       let result;
       if (isEditMode) {
         result = await dispatch(updateProduct({ id, productData })).unwrap();
@@ -338,7 +388,7 @@ const ProductForm = () => {
       }
 
       setSaveSuccess(true);
-      setSelectedFiles([]); // Clear selected files after upload
+      setSelectedFiles([]);
 
       setTimeout(() => {
         navigate('/seller/products');
@@ -529,7 +579,121 @@ const ProductForm = () => {
             </div>
           </div>
 
-          {/* ✅ IMAGES */}
+          {/* ==========================================
+              ✅ DISCOUNT SECTION (Seller Controlled)
+              ========================================== */}
+          <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                <Percent className="h-5 w-5 text-indigo-600" />
+                Product Discount
+              </h2>
+              <button
+                type="button"
+                onClick={toggleDiscountFields}
+                className="text-sm text-indigo-600 hover:text-indigo-700 dark:text-indigo-400"
+              >
+                {showDiscountFields ? 'Hide Discount' : 'Add Discount'}
+              </button>
+            </div>
+
+            {showDiscountFields && (
+              <div className="space-y-4 p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Discount Type
+                    </label>
+                    <select
+                      value={discountType}
+                      onChange={(e) => setDiscountType(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
+                    >
+                      <option value="percentage">Percentage (%)</option>
+                      <option value="fixed">Fixed Amount ($)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Discount Value *
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      max={discountType === 'percentage' ? 100 : undefined}
+                      {...register('discount', { valueAsNumber: true })}
+                      onChange={handleChange}
+                      className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white ${
+                        errors.discount ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
+                      }`}
+                      placeholder={discountType === 'percentage' ? 'e.g., 20' : 'e.g., 10.00'}
+                    />
+                    {errors.discount && (
+                      <p className="mt-1 text-sm text-red-600">{errors.discount.message}</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* ✅ Show discounted price preview */}
+                {priceValue && discountValue && discountValue > 0 && (
+                  <div className="p-3 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg border border-indigo-200 dark:border-indigo-800">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-gray-600 dark:text-gray-400">
+                          Original Price: <span className="font-medium text-gray-900 dark:text-white">${parseFloat(priceValue).toFixed(2)}</span>
+                        </p>
+                        <p className="text-sm text-green-600 dark:text-green-400">
+                          Discounted Price: <span className="font-bold">${calculateDiscountedPrice() || '0.00'}</span>
+                        </p>
+                      </div>
+                      <div className="px-3 py-1 bg-red-500 text-white text-xs font-bold rounded-full">
+                        {discountType === 'percentage' ? `${discountValue}% OFF` : `-$${parseFloat(discountValue).toFixed(2)}`}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 flex items-center gap-1">
+                      <Calendar className="h-4 w-4" />
+                      Start Date (Optional)
+                    </label>
+                    <input
+                      type="date"
+                      {...register('discountStartDate')}
+                      onChange={handleChange}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 flex items-center gap-1">
+                      <Clock className="h-4 w-4" />
+                      End Date (Optional)
+                    </label>
+                    <input
+                      type="date"
+                      {...register('discountEndDate')}
+                      onChange={handleChange}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
+                    />
+                  </div>
+                </div>
+
+                <div className="p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded border border-yellow-200 dark:border-yellow-800">
+                  <p className="text-xs text-yellow-600 dark:text-yellow-400 flex items-center gap-1">
+                    <AlertCircle className="h-3 w-3" />
+                    Discount will be automatically applied to this product when active.
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* IMAGES */}
           <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2 mb-4">
               <Image className="h-5 w-5 text-indigo-600" />
@@ -652,7 +816,7 @@ const ProductForm = () => {
             </div>
           </div>
 
-          {/* ✅ PUBLISH STATUS */}
+          {/* PUBLISH STATUS */}
           <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2 mb-4">
               <CheckCircle className="h-5 w-5 text-indigo-600" />
@@ -660,7 +824,6 @@ const ProductForm = () => {
             </h2>
 
             <div className="flex flex-wrap items-center gap-6">
-              {/* Published Toggle */}
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="checkbox"
@@ -678,7 +841,6 @@ const ProductForm = () => {
                 </span>
               </label>
 
-              {/* Featured Toggle */}
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="checkbox"
@@ -734,4 +896,4 @@ const ProductForm = () => {
   );
 };
 
-export default ProductForm;
+export default SellerProductForm;

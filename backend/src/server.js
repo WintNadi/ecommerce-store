@@ -3,7 +3,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import compression from 'compression';
-import cookieParser from 'cookie-parser';
+import cookieParser from 'cookie-parser'; // ✅ Fixed: lowercase with hyphen
 import dotenv from 'dotenv';
 import { createServer } from 'http';
 import { Server as SocketServer } from 'socket.io';
@@ -18,8 +18,11 @@ import orderRoutes from './routes/orderRoutes.js';
 import cartRoutes from './routes/cartRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
 import categoryRoutes from './routes/categoryRoutes.js';
-
 import paymentRoutes from './routes/paymentRoutes.js';
+// ✅ Import Seller Coupon Routes
+import sellerCouponRoutes from './routes/sellerCouponRoutes.js';
+// ✅ Import Admin Coupon Routes (if you have one)
+import couponRoutes from './routes/couponRoutes.js';
 
 // Import Middleware
 import { protect } from './middleware/auth.js';
@@ -156,6 +159,14 @@ app.use('/api', (req, res, next) => {
   if (req.path.startsWith('/cart')) {
     return next();
   }
+  // ✅ Seller coupon routes ကို Rate Limiter မသုံးပါနဲ့
+  if (req.path.startsWith('/seller/coupons')) {
+    return next();
+  }
+  // ✅ Admin coupon routes ကို Rate Limiter မသုံးပါနဲ့
+  if (req.path.startsWith('/coupons')) {
+    return next();
+  }
   generalLimiter(req, res, next);
 });
 
@@ -210,6 +221,12 @@ app.use('/api/payments', paymentRoutes); // Payment Routes
 // Admin Routes
 app.use('/api/admin', protect, adminRoutes);
 
+// ✅ Seller Coupon Routes
+app.use('/api/seller/coupons', sellerCouponRoutes);
+
+// ✅ Admin Coupon Routes
+app.use('/api/coupons', couponRoutes);
+
 // ============================================
 // 404 HANDLER
 // ============================================
@@ -262,6 +279,7 @@ const startServer = async () => {
       console.log('  📍 Order Tracking');
       console.log('  🎨 Mood-Based Store');
       console.log('  🌙 Dark Mode');
+      console.log('  🏷️ Coupon System'); // ✅ Added
       console.log('═══════════════════════════════════════════════\n');
     });
 

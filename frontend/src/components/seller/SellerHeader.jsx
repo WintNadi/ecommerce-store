@@ -12,7 +12,8 @@ import {
   Menu,
   X,
   Home,
-  Store
+  Store,
+  Tag
 } from 'lucide-react';
 import DarkModeToggle from '../common/DarkModeToggle';
 import MoodSelector from '../common/MoodSelector';
@@ -34,6 +35,8 @@ const SellerHeader = () => {
     { to: '/seller/dashboard', label: 'Dashboard', icon: BarChart3 },
     { to: '/seller/products', label: 'Products', icon: Package },
     { to: '/seller/orders', label: 'Orders', icon: ShoppingCart },
+    // ✅ Add Coupons link
+    { to: '/seller/coupons', label: 'Coupons', icon: Tag },
   ];
 
   return (

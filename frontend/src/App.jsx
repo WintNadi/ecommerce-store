@@ -32,16 +32,19 @@ import NotFoundPage from './pages/NotFoundPage';
 import DashboardPage from './pages/admin/DashboardPage';
 import OrdersPage from './pages/admin/OrdersPage';
 import ProductsPage from './pages/admin/ProductsPage';
-// import ProductFormPage from './pages/admin/ProductFormPage'; // ❌ REMOVE THIS
+import ProductFormPage from './pages/admin/ProductFormPage';
 import UsersPage from './pages/admin/UsersPage';
+// ✅ Admin Coupon Management
+import CouponManagement from './pages/admin/CouponManagement';
 
 // Seller Pages
 import SellerDashboardPage from './pages/seller/SellerDashboardPage';
 import SellerProductsPage from './pages/seller/SellerProductsPage';
 import SellerOrdersPage from './pages/seller/SellerOrdersPage';
-
-// ✅ IMPORT ProductForm (the one with image upload)
-import ProductForm from './pages/ProductForm';
+// ✅ Seller Product Form (with discount fields)
+import SellerProductForm from './pages/seller/SellerProductForm';
+// ✅ Seller Coupon Management
+import SellerCouponManagement from './pages/seller/SellerCouponManagement';
 
 const App = () => {
   const dispatch = useDispatch();
@@ -56,7 +59,9 @@ const App = () => {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Public Routes with Layout */}
+        {/* ============================================
+            PUBLIC ROUTES WITH LAYOUT
+            ============================================ */}
         <Route path="/" element={<Layout />}>
           <Route index element={<HomePage />} />
           <Route path="shop" element={<ShopPage />} />
@@ -80,28 +85,36 @@ const App = () => {
           <Route path="*" element={<Navigate to="/404" replace />} />
         </Route>
 
-        {/* ✅ Admin Routes - Using ProductForm */}
+        {/* ============================================
+            ADMIN ROUTES
+            ============================================ */}
         <Route element={<ProtectedRoute adminOnly />}>
           <Route path="/admin" element={<AdminLayout />}>
             <Route index element={<DashboardPage />} />
             <Route path="orders" element={<OrdersPage />} />
             <Route path="products" element={<ProductsPage />} />
-            {/* ✅ Use ProductForm (with image upload) */}
-            <Route path="products/create" element={<ProductForm />} />
-            <Route path="products/edit/:id" element={<ProductForm />} />
+            <Route path="products/create" element={<ProductFormPage />} />
+            <Route path="products/edit/:id" element={<ProductFormPage />} />
             <Route path="users" element={<UsersPage />} />
+            {/* ✅ Admin Coupon Management */}
+            <Route path="coupons" element={<CouponManagement />} />
           </Route>
         </Route>
 
-        {/* ✅ Seller Routes - Using ProductForm */}
+        {/* ============================================
+            SELLER ROUTES
+            ============================================ */}
         <Route element={<ProtectedRoute sellerOnly />}>
           <Route path="/seller" element={<SellerLayout />}>
+            <Route index element={<Navigate to="/seller/dashboard" replace />} />
             <Route path="dashboard" element={<SellerDashboardPage />} />
             <Route path="products" element={<SellerProductsPage />} />
-            {/* ✅ Use ProductForm (with image upload) */}
-            <Route path="products/create" element={<ProductForm />} />
-            <Route path="products/edit/:id" element={<ProductForm />} />
+            {/* ✅ Seller Product Form (with discount fields) */}
+            <Route path="products/create" element={<SellerProductForm />} />
+            <Route path="products/edit/:id" element={<SellerProductForm />} />
             <Route path="orders" element={<SellerOrdersPage />} />
+            {/* ✅ Seller Coupon Management */}
+            <Route path="coupons" element={<SellerCouponManagement />} />
           </Route>
         </Route>
       </Routes>

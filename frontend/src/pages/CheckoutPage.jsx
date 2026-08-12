@@ -5,6 +5,7 @@ import { Elements } from '@stripe/react-stripe-js';
 import { loadStripe } from '@stripe/stripe-js';
 import { createOrder } from '../store/slices/orderSlice';
 import { getCart, clearCart } from '../store/slices/cartSlice';
+import { applyCoupon, removeCoupon } from '../store/slices/cartSlice';
 import StripePayment from '../components/payment/StripePayment';
 import {
   ChevronLeft,
@@ -17,7 +18,11 @@ import {
   Package,
   Loader2,
   AlertCircle,
-  X
+  X,
+  Tag,
+  Minus,
+  Plus,
+  Trash2
 } from 'lucide-react';
 
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
@@ -27,7 +32,7 @@ const CheckoutPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const { items, subtotal, taxAmount, totalPrice, itemCount } = useSelector(
+  const { items, subtotal, taxAmount, totalPrice, itemCount, shippingAmount, couponCode, couponDiscount, couponApplied } = useSelector(
     (state) => state.cart
   );
 
@@ -51,6 +56,9 @@ const CheckoutPage = () => {
 
   const [paymentMethod, setPaymentMethod] = useState('stripe');
   const [shippingMethod, setShippingMethod] = useState('standard');
+  const [couponInput, setCouponInput] = useState('');
+  const [couponError, setCouponError] = useState(null);
+  const [applyingCoupon, setApplyingCoupon] = useState(false);
 
   // Order/payment states
   const [orderPlaced, setOrderPlaced] = useState(false);
@@ -67,31 +75,30 @@ const CheckoutPage = () => {
   // ✅ Track payment flow states
   const [isCreatingOrder, setIsCreatingOrder] = useState(false);
   const [showStripeForm, setShowStripeForm] = useState(false);
-  
-  // ✅ Track if order is being created on payment success
   const [isProcessingSuccess, setIsProcessingSuccess] = useState(false);
 
-  /*
-   * ============================================================
-   * CHECK IF WE'RE RETURNING FROM ORDERS
-   * ============================================================
-   */
-  useEffect(() => {
-    const fromOrders = location.state?.from === '/orders';
-    const hasItems = items && items.length > 0;
+  // ✅ Calculate shipping costs
+  const shippingCosts = {
+    standard: 5.99,
+    express: 12.99,
+    international: 25.99
+  };
 
-    if (fromOrders && hasItems && !orderPlaced && !showConfirmation) {
-      setShowResumePage(true);
-    } else {
-      setShowResumePage(false);
-    }
-  }, [location, items, orderPlaced, showConfirmation]);
+  // ✅ Calculate totals with coupon
+  const subtotalAmount = subtotal || 0;
+  const shippingCost = shippingCosts[shippingMethod] || 0;
+  const taxAmountValue = taxAmount || 0;
+  const couponDiscountValue = couponDiscount || 0;
+  
+  // ✅ PREVENT NEGATIVE TOTAL
+  const finalTotal = Math.max(0, subtotalAmount + shippingCost + taxAmountValue - couponDiscountValue);
 
-  /*
-   * ============================================================
-   * LOAD CART
-   * ============================================================
-   */
+  // ✅ Calculate savings
+  const totalSavings = couponDiscountValue;
+
+  // ============================================
+  // LOAD CART
+  // ============================================
   useEffect(() => {
     if (!isAuthenticated) {
       navigate('/login', {
@@ -107,15 +114,12 @@ const CheckoutPage = () => {
     }
   }, [dispatch, isAuthenticated, navigate, cartLoaded]);
 
-  /*
-   * ============================================================
-   * CHECK EMPTY CART
-   * ============================================================
-   */
+  // ============================================
+  // CHECK EMPTY CART
+  // ============================================
   useEffect(() => {
     if (
       cartLoaded &&
-      step === 1 &&
       !orderPlaced &&
       !showConfirmation &&
       !showResumePage &&
@@ -129,15 +133,26 @@ const CheckoutPage = () => {
     cartLoaded,
     orderPlaced,
     showConfirmation,
-    showResumePage,
-    step
+    showResumePage
   ]);
 
-  /*
-   * ============================================================
-   * ADDRESS
-   * ============================================================
-   */
+  // ============================================
+  // CHECK IF WE'RE RETURNING FROM ORDERS
+  // ============================================
+  useEffect(() => {
+    const fromOrders = location.state?.from === '/orders';
+    const hasItems = items && items.length > 0;
+
+    if (fromOrders && hasItems && !orderPlaced && !showConfirmation) {
+      setShowResumePage(true);
+    } else {
+      setShowResumePage(false);
+    }
+  }, [location, items, orderPlaced, showConfirmation]);
+
+  // ============================================
+  // ADDRESS
+  // ============================================
   const handleAddressChange = (e) => {
     setAddress({
       ...address,
@@ -145,19 +160,42 @@ const CheckoutPage = () => {
     });
   };
 
-  /*
-   * ============================================================
-   * CREATE PAYMENT INTENT WITHOUT ORDER FIRST
-   * ============================================================
-   */
-  const handleCreatePaymentIntent = async () => {
-    // Prevent double submission
-    if (isCreatingOrder || isProcessingPayment) {
+  // ============================================
+  // COUPON HANDLERS
+  // ============================================
+  const handleApplyCoupon = async () => {
+    if (!couponInput.trim()) {
+      setCouponError('Please enter a coupon code');
       return;
     }
 
-    if (!items || items.length === 0) {
-      setPaymentError('Your cart is empty. Please add items to your cart.');
+    setApplyingCoupon(true);
+    setCouponError(null);
+
+    try {
+      const result = await dispatch(applyCoupon(couponInput.trim())).unwrap();
+      setCouponInput('');
+      setCouponError(null);
+    } catch (err) {
+      setCouponError(err || 'Invalid coupon code');
+    } finally {
+      setApplyingCoupon(false);
+    }
+  };
+
+  const handleRemoveCoupon = async () => {
+    try {
+      await dispatch(removeCoupon()).unwrap();
+    } catch (err) {
+      console.error('Failed to remove coupon:', err);
+    }
+  };
+
+  // ============================================
+  // CREATE ORDER FOR STRIPE
+  // ============================================
+  const createOrderAndPayment = async () => {
+    if (isCreatingOrder || isProcessingPayment || orderId) {
       return;
     }
 
@@ -166,17 +204,29 @@ const CheckoutPage = () => {
     setPaymentError(null);
 
     try {
-      // ✅ Calculate total
-      const total = totalPrice + shippingCosts[shippingMethod];
-      
-      // ✅ Get clientSecret WITHOUT creating order
+      const orderData = {
+        shippingAddress: address,
+        paymentMethod: 'stripe',
+        shippingMethod,
+        notes: '',
+        couponCode: couponApplied ? couponCode : null
+      };
+
+      const result = await dispatch(createOrder(orderData)).unwrap();
+      const newOrderId = result?.data?._id || result?.data?.id;
+
+      if (!newOrderId) {
+        throw new Error('Order creation returned no order ID');
+      }
+
+      setOrderId(newOrderId);
+      setCreatedOrderData(result.data);
+
       const token = localStorage.getItem('accessToken');
       if (!token) {
         throw new Error('No access token found. Please login again.');
       }
 
-      console.log('🔄 Creating payment intent for amount:', total);
-      
       const paymentResponse = await fetch('/api/payments/create-payment-intent-without-order', {
         method: 'POST',
         headers: {
@@ -184,10 +234,10 @@ const CheckoutPage = () => {
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({ 
-          amount: Math.round(total * 100), // Convert to cents
+          amount: Math.round(finalTotal * 100),
           currency: 'usd',
           metadata: {
-            items: JSON.stringify(items.map(i => ({ id: i._id, qty: i.quantity })))
+            orderId: newOrderId
           }
         })
       });
@@ -198,89 +248,30 @@ const CheckoutPage = () => {
       }
 
       const paymentData = await paymentResponse.json();
-      console.log('📦 Payment response:', paymentData);
 
       if (paymentData.success && paymentData.data?.clientSecret) {
         setClientSecret(paymentData.data.clientSecret);
         setShowStripeForm(true);
-        console.log('✅ ClientSecret fetched successfully - showing card form');
+        console.log('✅ ClientSecret fetched successfully');
       } else {
         throw new Error(paymentData.message || 'Failed to initialize payment');
       }
 
     } catch (error) {
-      console.error('❌ Payment intent creation failed:', error);
-      setPaymentError(error?.message || 'Failed to initialize payment');
+      console.error('❌ Order creation failed:', error);
+      setPaymentError(error?.message || 'Failed to create order');
+      setOrderId(null);
+      setCreatedOrderData(null);
       setClientSecret(null);
-      setShowStripeForm(false);
     } finally {
       setIsCreatingOrder(false);
       setIsProcessingPayment(false);
     }
   };
 
-  /*
-   * ============================================================
-   * CREATE ORDER AFTER PAYMENT SUCCESS
-   * ============================================================
-   */
-  const handleCreateOrderAfterPayment = async (paymentIntent) => {
-    if (isProcessingSuccess) {
-      return;
-    }
-
-    setIsProcessingSuccess(true);
-    setPaymentError(null);
-
-    try {
-      console.log('🔄 Creating order after successful payment...');
-      console.log('💳 Payment Intent:', paymentIntent);
-
-      const orderData = {
-        shippingAddress: address,
-        paymentMethod: 'stripe',
-        shippingMethod,
-        notes: '',
-        paymentIntentId: paymentIntent.id,
-        paymentStatus: 'paid',
-        isPaid: true,
-        paidAt: new Date().toISOString(),
-        totalPrice: finalTotal,
-        subtotal: subtotal,
-        taxAmount: taxAmount,
-        items: items
-      };
-
-      const result = await dispatch(createOrder(orderData)).unwrap();
-      console.log('📦 Order creation result:', result);
-
-      const newOrderId = result?.data?._id || result?.data?.id || result?._id;
-
-      if (!newOrderId) {
-        throw new Error('Order creation returned no order ID');
-      }
-
-      setOrderId(newOrderId);
-      setCreatedOrderData(result.data || result);
-      
-      setOrderPlaced(true);
-      setShowConfirmation(true);
-      setStep(3);
-      dispatch(clearCart());
-
-    } catch (error) {
-      console.error('❌ Order creation after payment failed:', error);
-      setPaymentError('Payment succeeded but order creation failed. Please contact support.');
-    } finally {
-      setIsProcessingSuccess(false);
-    }
-  };
-
-  /*
-   * ============================================================
-   * CREATE ORDER FOR COD
-   * ============================================================
-   */
+  // ============================================
+  // CREATE ORDER FOR COD
+  // ============================================
   const createOrderForCOD = async () => {
     if (isProcessingPayment) {
       return;
@@ -298,7 +289,8 @@ const CheckoutPage = () => {
       shippingAddress: address,
       paymentMethod: 'cod',
       shippingMethod,
-      notes: ''
+      notes: '',
+      couponCode: couponApplied ? couponCode : null
     };
 
     try {
@@ -325,21 +317,22 @@ const CheckoutPage = () => {
     }
   };
 
-  /*
-   * ============================================================
-   * STRIPE PAYMENT SUCCESS
-   * ============================================================
-   */
+  // ============================================
+  // STRIPE PAYMENT SUCCESS
+  // ============================================
   const handlePaymentSuccess = (paymentIntent) => {
     console.log('✅ Stripe payment successful:', paymentIntent?.id);
-    handleCreateOrderAfterPayment(paymentIntent);
+
+    setPaymentError(null);
+    setOrderPlaced(true);
+    setShowConfirmation(true);
+    setStep(3);
+    dispatch(clearCart());
   };
 
-  /*
-   * ============================================================
-   * STRIPE PAYMENT ERROR
-   * ============================================================
-   */
+  // ============================================
+  // STRIPE PAYMENT ERROR
+  // ============================================
   const handlePaymentError = (error) => {
     console.error('❌ Stripe payment error:', error);
     setPaymentError(error || 'Payment failed. Please try again.');
@@ -347,11 +340,9 @@ const CheckoutPage = () => {
     setClientSecret(null);
   };
 
-  /*
-   * ============================================================
-   * TRY AGAIN
-   * ============================================================
-   */
+  // ============================================
+  // TRY AGAIN
+  // ============================================
   const handleTryAgain = () => {
     setPaymentError(null);
     setShowResumePage(false);
@@ -369,11 +360,9 @@ const CheckoutPage = () => {
     dispatch(getCart());
   };
 
-  /*
-   * ============================================================
-   * CONTINUE TO CHECKOUT
-   * ============================================================
-   */
+  // ============================================
+  // CONTINUE TO CHECKOUT
+  // ============================================
   const handleContinueToCheckout = () => {
     setShowResumePage(false);
     setOrderId(null);
@@ -386,12 +375,11 @@ const CheckoutPage = () => {
     setStep(1);
   };
 
-  /*
-   * ============================================================
-   * HANDLE CONTINUE TO PAYMENT
-   * ============================================================
-   */
-  const handleContinueToPayment = () => {
+  // ============================================
+  // NAVIGATION
+  // ============================================
+  const handleNextStep = async () => {
+    // STEP 1 → STEP 2
     if (step === 1) {
       if (
         !address.street ||
@@ -403,34 +391,30 @@ const CheckoutPage = () => {
         alert('Please fill in all address fields');
         return;
       }
+
       setPaymentError(null);
       setStep(2);
       return;
     }
 
+    // STEP 2
     if (step === 2) {
       if (!paymentMethod) {
         alert('Please select a payment method');
         return;
       }
 
-      if (!items || items.length === 0) {
-        setPaymentError('Your cart is empty. Please add items to your cart.');
-        return;
-      }
-
+      // COD
       if (paymentMethod === 'cod') {
-        createOrderForCOD();
+        await createOrderForCOD();
         return;
       }
 
+      // Stripe
       if (paymentMethod === 'stripe') {
-        setOrderId(null);
-        setCreatedOrderData(null);
-        setClientSecret(null);
-        setPaymentError(null);
-        setShowStripeForm(false);
-        setStep(3);
+        if (!orderId) {
+          await createOrderAndPayment();
+        }
         return;
       }
 
@@ -439,24 +423,6 @@ const CheckoutPage = () => {
           'PayPal payment is not implemented yet. Please choose Stripe or Cash on Delivery.'
         );
       }
-    }
-  };
-
-  /*
-   * ============================================================
-   * HANDLE PAYMENT METHOD CHANGE
-   * ============================================================
-   */
-  const handlePaymentMethodChange = (method) => {
-    setPaymentMethod(method);
-    setPaymentError(null);
-    setOrderId(null);
-    setCreatedOrderData(null);
-    setClientSecret(null);
-    setShowStripeForm(false);
-    
-    if (step === 3 && method !== 'stripe') {
-      setStep(2);
     }
   };
 
@@ -489,19 +455,9 @@ const CheckoutPage = () => {
     navigate('/orders');
   };
 
-  const shippingCosts = {
-    standard: 5.99,
-    express: 12.99,
-    international: 25.99
-  };
-
-  const finalTotal = totalPrice + shippingCosts[shippingMethod];
-
-  /*
-   * ============================================================
-   * ORDER CONFIRMATION MODAL
-   * ============================================================
-   */
+  // ============================================
+  // ORDER CONFIRMATION MODAL
+  // ============================================
   if (orderPlaced && showConfirmation && createdOrderData) {
     return (
       <OrderConfirmation
@@ -512,11 +468,9 @@ const CheckoutPage = () => {
     );
   }
 
-  /*
-   * ============================================================
-   * RESUME PAYMENT PAGE
-   * ============================================================
-   */
+  // ============================================
+  // RESUME PAYMENT PAGE
+  // ============================================
   if (showResumePage) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8 flex items-center justify-center">
@@ -539,11 +493,9 @@ const CheckoutPage = () => {
     );
   }
 
-  /*
-   * ============================================================
-   * MAIN CHECKOUT UI
-   * ============================================================
-   */
+  // ============================================
+  // MAIN CHECKOUT UI
+  // ============================================
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -551,6 +503,7 @@ const CheckoutPage = () => {
         {/* PROGRESS STEPS */}
         <div className="flex items-center justify-center mb-8">
           <div className="flex items-center gap-2">
+
             <div
               className={`flex items-center gap-2 ${
                 step >= 1
@@ -567,6 +520,7 @@ const CheckoutPage = () => {
               >
                 1
               </div>
+
               <span className="text-sm font-medium hidden sm:block">
                 Address
               </span>
@@ -596,6 +550,7 @@ const CheckoutPage = () => {
               >
                 2
               </div>
+
               <span className="text-sm font-medium hidden sm:block">
                 Payment
               </span>
@@ -625,8 +580,9 @@ const CheckoutPage = () => {
               >
                 3
               </div>
+
               <span className="text-sm font-medium hidden sm:block">
-                Pay
+                Confirm
               </span>
             </div>
           </div>
@@ -641,10 +597,18 @@ const CheckoutPage = () => {
               {paymentError && (
                 <div className="mb-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-600 dark:text-red-400">
                   <div className="flex items-start gap-3">
+
                     <AlertCircle className="h-5 w-5 flex-shrink-0 mt-0.5" />
+
                     <div className="flex-1">
-                      <p className="font-medium">Payment Error</p>
-                      <p className="text-sm">{paymentError}</p>
+                      <p className="font-medium">
+                        Payment Error
+                      </p>
+
+                      <p className="text-sm">
+                        {paymentError}
+                      </p>
+
                       <button
                         onClick={handleTryAgain}
                         className="mt-2 text-sm font-medium text-indigo-600 hover:text-indigo-500 dark:text-indigo-400"
@@ -656,7 +620,7 @@ const CheckoutPage = () => {
                 </div>
               )}
 
-              {/* STEP 1 - Address */}
+              {/* STEP 1 */}
               {step === 1 && (
                 <div>
                   <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
@@ -665,10 +629,12 @@ const CheckoutPage = () => {
                   </h2>
 
                   <div className="grid grid-cols-1 gap-4">
+
                     <div>
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                         Street Address *
                       </label>
+
                       <input
                         type="text"
                         name="street"
@@ -680,10 +646,12 @@ const CheckoutPage = () => {
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
+
                       <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                           City *
                         </label>
+
                         <input
                           type="text"
                           name="city"
@@ -693,10 +661,12 @@ const CheckoutPage = () => {
                           placeholder="Yangon"
                         />
                       </div>
+
                       <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                           State/Region *
                         </label>
+
                         <input
                           type="text"
                           name="state"
@@ -709,10 +679,12 @@ const CheckoutPage = () => {
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
+
                       <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                           Zip Code *
                         </label>
+
                         <input
                           type="text"
                           name="zipCode"
@@ -722,10 +694,12 @@ const CheckoutPage = () => {
                           placeholder="11111"
                         />
                       </div>
+
                       <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                           Country
                         </label>
+
                         <input
                           type="text"
                           name="country"
@@ -741,6 +715,7 @@ const CheckoutPage = () => {
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                         Phone Number *
                       </label>
+
                       <input
                         type="tel"
                         name="phone"
@@ -754,7 +729,7 @@ const CheckoutPage = () => {
                 </div>
               )}
 
-              {/* STEP 2 - Payment Method Selection */}
+              {/* STEP 2 */}
               {step === 2 && (
                 <div>
                   <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
@@ -763,12 +738,14 @@ const CheckoutPage = () => {
                   </h2>
 
                   <div className="space-y-6">
+
                     {/* SHIPPING METHOD */}
                     <div>
                       <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
                         <Truck className="h-4 w-4" />
                         Shipping Method
                       </h3>
+
                       <div className="space-y-2">
                         {['standard', 'express', 'international'].map((method) => (
                           <label
@@ -787,14 +764,17 @@ const CheckoutPage = () => {
                               onChange={(e) => setShippingMethod(e.target.value)}
                               className="h-4 w-4 text-indigo-600 focus:ring-indigo-500"
                             />
+
                             <div className="flex-1">
                               <span className="font-medium capitalize text-gray-900 dark:text-white">
                                 {method}
                               </span>
+
                               <span className="text-sm text-gray-500 dark:text-gray-400 ml-2">
                                 ${shippingCosts[method].toFixed(2)}
                               </span>
                             </div>
+
                             <Truck className="h-5 w-5 text-gray-400" />
                           </label>
                         ))}
@@ -807,166 +787,268 @@ const CheckoutPage = () => {
                         <CreditCard className="h-4 w-4" />
                         Payment Method
                       </h3>
+
                       <div className="space-y-2">
+
+                        {/* STRIPE */}
                         <label
                           className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${
                             paymentMethod === 'stripe'
                               ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20'
                               : 'border-gray-200 dark:border-gray-700'
                           }`}
-                          onClick={() => handlePaymentMethodChange('stripe')}
                         >
                           <input
                             type="radio"
                             name="payment"
                             value="stripe"
                             checked={paymentMethod === 'stripe'}
-                            onChange={() => {}}
+                            onChange={(e) => {
+                              setPaymentMethod(e.target.value);
+                              setPaymentError(null);
+                            }}
                             className="h-4 w-4 text-indigo-600 focus:ring-indigo-500"
                           />
+
                           <div className="flex-1">
                             <span className="font-medium text-gray-900 dark:text-white">
                               Credit Card (Stripe)
                             </span>
+
                             <p className="text-xs text-gray-500 dark:text-gray-400">
                               Secure payment with Stripe
                             </p>
                           </div>
+
                           <Shield className="h-5 w-5 text-gray-400" />
                         </label>
 
+                        {/* PAYPAL */}
                         <label
                           className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${
                             paymentMethod === 'paypal'
                               ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20'
                               : 'border-gray-200 dark:border-gray-700'
                           }`}
-                          onClick={() => handlePaymentMethodChange('paypal')}
                         >
                           <input
                             type="radio"
                             name="payment"
                             value="paypal"
                             checked={paymentMethod === 'paypal'}
-                            onChange={() => {}}
+                            onChange={(e) => {
+                              setPaymentMethod(e.target.value);
+                              setPaymentError(null);
+                            }}
                             className="h-4 w-4 text-indigo-600 focus:ring-indigo-500"
                           />
+
                           <div className="flex-1">
                             <span className="font-medium text-gray-900 dark:text-white">
                               PayPal
                             </span>
+
                             <p className="text-xs text-gray-500 dark:text-gray-400">
                               Currently unavailable
                             </p>
                           </div>
+
                           <CreditCard className="h-5 w-5 text-gray-400" />
                         </label>
 
+                        {/* COD */}
                         <label
                           className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${
                             paymentMethod === 'cod'
                               ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20'
                               : 'border-gray-200 dark:border-gray-700'
                           }`}
-                          onClick={() => handlePaymentMethodChange('cod')}
                         >
                           <input
                             type="radio"
                             name="payment"
                             value="cod"
                             checked={paymentMethod === 'cod'}
-                            onChange={() => {}}
+                            onChange={(e) => {
+                              setPaymentMethod(e.target.value);
+                              setPaymentError(null);
+                            }}
                             className="h-4 w-4 text-indigo-600 focus:ring-indigo-500"
                           />
+
                           <div className="flex-1">
                             <span className="font-medium text-gray-900 dark:text-white">
                               Cash on Delivery
                             </span>
+
                             <p className="text-xs text-gray-500 dark:text-gray-400">
                               Pay when you receive
                             </p>
                           </div>
+
                           <Package className="h-5 w-5 text-gray-400" />
                         </label>
                       </div>
                     </div>
-                  </div>
-                </div>
-              )}
 
-              {/* STEP 3 - Payment Page - NO ORDER CREATED YET! */}
-              {step === 3 && paymentMethod === 'stripe' && (
-                <div>
-                  <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                    <CreditCard className="h-5 w-5 text-indigo-600" />
-                    Enter Card Details
-                  </h2>
+                    {/* ✅ COUPON SECTION */}
+                    <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+                      <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
+                        <Tag className="h-4 w-4" />
+                        Coupon
+                      </h3>
 
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                    {showStripeForm 
-                      ? 'Enter your card details to complete the payment. Order will be created after successful payment.' 
-                      : 'Click the button below to proceed with payment. Your order will be created ONLY after successful payment.'}
-                  </p>
-
-                  <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
-                    {isCreatingOrder || isProcessingPayment ? (
-                      <div className="flex items-center justify-center py-4">
-                        <Loader2 className="h-6 w-6 animate-spin text-indigo-600 mr-2" />
-                        <span className="text-gray-600 dark:text-gray-400">
-                          {isCreatingOrder ? 'Initializing payment...' : 'Processing...'}
-                        </span>
-                      </div>
-                    ) : showStripeForm && clientSecret ? (
-                      <Elements 
-                        stripe={stripePromise} 
-                        options={{ 
-                          clientSecret,
-                          appearance: {
-                            theme: 'stripe',
-                            variables: { 
-                              colorPrimary: '#4F46E5',
-                              colorBackground: '#ffffff',
-                              colorText: '#1a202c'
-                            }
-                          }
-                        }}
-                      >
-                        <StripePayment
-                          clientSecret={clientSecret}
-                          amount={finalTotal}
-                          onSuccess={handlePaymentSuccess}
-                          onError={handlePaymentError}
-                        />
-                      </Elements>
-                    ) : (
-                      // ✅ Updated Button - "Enter Card Details" instead of "Pay"
-                      <div className="text-center py-4">
-                        <p className="text-gray-500 dark:text-gray-400 text-sm mb-4">
-                          Click the button below to start the payment process.
-                          Your order will be created ONLY after successful payment.
-                        </p>
-                        <button
-                          onClick={handleCreatePaymentIntent}
-                          disabled={isCreatingOrder || isProcessingPayment}
-                          className="px-8 py-4 bg-indigo-600 text-white text-lg font-bold rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                        >
-                          {isCreatingOrder || isProcessingPayment ? (
-                            <span className="flex items-center justify-center gap-2">
-                              <Loader2 className="h-5 w-5 animate-spin" />
-                              Initializing...
+                      {couponApplied ? (
+                        <div className="flex items-center justify-between p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
+                          <div>
+                            <span className="text-sm font-medium text-green-600 dark:text-green-400">
+                              Coupon applied: {couponCode}
                             </span>
-                          ) : (
-                            `Enter Card Details - $${finalTotal.toFixed(2)}`
-                          )}
-                        </button>
+                            <span className="text-xs text-green-500 dark:text-green-300 ml-2">
+                              -${couponDiscount.toFixed(2)}
+                            </span>
+                          </div>
+                          <button
+                            onClick={handleRemoveCoupon}
+                            className="text-sm text-red-500 hover:text-red-700"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={couponInput}
+                            onChange={(e) => setCouponInput(e.target.value)}
+                            placeholder="Enter coupon code"
+                            className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
+                            disabled={applyingCoupon}
+                          />
+                          <button
+                            onClick={handleApplyCoupon}
+                            disabled={applyingCoupon}
+                            className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                          >
+                            {applyingCoupon ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              'Apply'
+                            )}
+                          </button>
+                        </div>
+                      )}
+                      
+                      {couponError && (
+                        <p className="mt-2 text-sm text-red-600">{couponError}</p>
+                      )}
+                    </div>
+
+                    {/* ✅ STRIPE PAYMENT - ONLY SHOW WHEN clientSecret EXISTS */}
+                    {paymentMethod === 'stripe' && clientSecret && (
+                      <div className="mt-4 p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
+                        <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                          Card Details
+                        </h4>
+                        <Elements 
+                          stripe={stripePromise} 
+                          options={{ 
+                            clientSecret,
+                            appearance: {
+                              theme: 'stripe',
+                              variables: { 
+                                colorPrimary: '#4F46E5',
+                                colorBackground: '#ffffff',
+                                colorText: '#1a202c'
+                              }
+                            }
+                          }}
+                        >
+                          <StripePayment
+                            clientSecret={clientSecret}
+                            amount={finalTotal}
+                            orderId={orderId}
+                            onSuccess={handlePaymentSuccess}
+                            onError={handlePaymentError}
+                          />
+                        </Elements>
                       </div>
+                    )}
+
+                    {/* STRIPE ORDER CREATION LOADING */}
+                    {paymentMethod === 'stripe' &&
+                      !clientSecret &&
+                      isCreatingOrder && (
+                        <div className="mt-4 p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
+                          <div className="flex items-center justify-center py-4">
+                            <Loader2 className="h-6 w-6 animate-spin text-indigo-600 mr-2" />
+                            <span className="text-gray-600 dark:text-gray-400">
+                              Creating your order...
+                            </span>
+                          </div>
+                        </div>
+                      )}
+
+                    {/* STRIPE CREATE ORDER BUTTON */}
+                    {paymentMethod === 'stripe' &&
+                      !orderId &&
+                      !isCreatingOrder && (
+                        <button
+                          onClick={handleNextStep}
+                          className="w-full mt-4 px-6 py-3 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 transition-colors"
+                        >
+                          Continue to Payment
+                        </button>
+                      )}
+
+                    {/* COD BUTTON */}
+                    {paymentMethod === 'cod' && (
+                      <button
+                        onClick={handleNextStep}
+                        disabled={isProcessingPayment}
+                        className="w-full mt-4 px-6 py-3 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      >
+                        {isProcessingPayment ? (
+                          <span className="flex items-center justify-center gap-2">
+                            <Loader2 className="h-5 w-5 animate-spin" />
+                            Processing...
+                          </span>
+                        ) : (
+                          'Place Order'
+                        )}
+                      </button>
+                    )}
+
+                    {/* PAYPAL BUTTON */}
+                    {paymentMethod === 'paypal' && (
+                      <button
+                        onClick={handleNextStep}
+                        className="w-full mt-4 px-6 py-3 bg-gray-400 text-white font-medium rounded-lg cursor-not-allowed"
+                      >
+                        PayPal Unavailable
+                      </button>
                     )}
                   </div>
                 </div>
               )}
 
+              {/* STEP 3 */}
+              {step === 3 && !showConfirmation && (
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                    <CheckCircle className="h-5 w-5 text-green-500" />
+                    Order Confirmation
+                  </h2>
+
+                  <p className="text-gray-600 dark:text-gray-300">
+                    Your order has been successfully placed.
+                  </p>
+                </div>
+              )}
+
               {/* NAVIGATION */}
               <div className="flex justify-between mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
+
                 {step > 1 ? (
                   <button
                     onClick={handlePreviousStep}
@@ -983,22 +1065,10 @@ const CheckoutPage = () => {
                 {/* STEP 1 CONTINUE */}
                 {step === 1 && (
                   <button
-                    onClick={handleContinueToPayment}
+                    onClick={handleNextStep}
                     className="flex items-center gap-2 px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
                   >
                     Continue
-                    <ChevronRight className="h-4 w-4" />
-                  </button>
-                )}
-
-                {/* STEP 2 CONTINUE */}
-                {step === 2 && (
-                  <button
-                    onClick={handleContinueToPayment}
-                    disabled={isProcessingPayment}
-                    className="flex items-center gap-2 px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  >
-                    {paymentMethod === 'cod' ? 'Place Order' : 'Continue to Payment'}
                     <ChevronRight className="h-4 w-4" />
                   </button>
                 )}
@@ -1015,37 +1085,73 @@ const CheckoutPage = () => {
           {/* ORDER SUMMARY */}
           <div className="lg:col-span-1">
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 sticky top-4">
+
               <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4">
                 Order Summary
               </h2>
+
               <div className="space-y-3">
+
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-600 dark:text-gray-400">Subtotal</span>
+                  <span className="text-gray-600 dark:text-gray-400">
+                    Subtotal
+                  </span>
+
                   <span className="text-gray-900 dark:text-white font-medium">
-                    ${subtotal.toFixed(2)}
+                    ${subtotalAmount.toFixed(2)}
                   </span>
                 </div>
+
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-600 dark:text-gray-400">Shipping</span>
+                  <span className="text-gray-600 dark:text-gray-400">
+                    Shipping
+                  </span>
+
                   <span className="text-gray-900 dark:text-white font-medium">
-                    ${shippingCosts[shippingMethod].toFixed(2)}
+                    ${shippingCost.toFixed(2)}
                   </span>
                 </div>
+
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-600 dark:text-gray-400">Tax</span>
+                  <span className="text-gray-600 dark:text-gray-400">
+                    Tax
+                  </span>
+
                   <span className="text-gray-900 dark:text-white font-medium">
-                    ${taxAmount.toFixed(2)}
+                    ${taxAmountValue.toFixed(2)}
                   </span>
                 </div>
+
+                {couponApplied && couponDiscount > 0 && (
+                  <div className="flex justify-between text-sm text-green-600 dark:text-green-400">
+                    <span>Coupon Discount</span>
+                    <span>-${couponDiscount.toFixed(2)}</span>
+                  </div>
+                )}
+
                 <div className="border-t border-gray-200 dark:border-gray-700 pt-3">
                   <div className="flex justify-between text-lg font-bold">
-                    <span className="text-gray-900 dark:text-white">Total</span>
+
+                    <span className="text-gray-900 dark:text-white">
+                      Total
+                    </span>
+
                     <span className="text-indigo-600 dark:text-indigo-400">
                       ${finalTotal.toFixed(2)}
                     </span>
+
                   </div>
                 </div>
               </div>
+
+              {totalSavings > 0 && (
+                <div className="mt-2 p-2 bg-green-50 dark:bg-green-900/20 rounded-lg">
+                  <p className="text-xs text-green-600 dark:text-green-400 text-center">
+                    🎉 You saved ${totalSavings.toFixed(2)} with coupon!
+                  </p>
+                </div>
+              )}
+
               <div className="mt-4 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg text-xs text-gray-600 dark:text-gray-300 space-y-1">
                 <p>✅ Free shipping on orders over $50</p>
                 <p>🛡️ Secure checkout with SSL encryption</p>
@@ -1059,11 +1165,9 @@ const CheckoutPage = () => {
   );
 };
 
-/*
- * ============================================================
- * ORDER CONFIRMATION MODAL
- * ============================================================
- */
+// ============================================
+// ORDER CONFIRMATION MODAL
+// ============================================
 const OrderConfirmation = ({ order, onClose, onViewOrders }) => {
   const navigate = useNavigate();
 
@@ -1080,6 +1184,7 @@ const OrderConfirmation = ({ order, onClose, onViewOrders }) => {
       onClick={handleBackdropClick}
     >
       <div className="relative max-w-2xl w-full bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-8 max-h-[90vh] overflow-y-auto animate-fade-in">
+
         <button
           onClick={onClose}
           className="absolute top-4 right-4 p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
@@ -1096,37 +1201,69 @@ const OrderConfirmation = ({ order, onClose, onViewOrders }) => {
         <h1 className="text-2xl font-bold text-center text-gray-900 dark:text-white">
           Order Confirmed! 🎉
         </h1>
+
         <p className="text-center text-gray-600 dark:text-gray-400 mt-2">
           Thank you for your order. We'll send you a confirmation email shortly.
         </p>
 
         <div className="mt-6 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+
           <div className="flex justify-between items-center">
-            <span className="text-sm text-gray-600 dark:text-gray-400">Order Number</span>
+            <span className="text-sm text-gray-600 dark:text-gray-400">
+              Order Number
+            </span>
+
             <span className="text-sm font-bold text-gray-900 dark:text-white">
               #{orderNumber}
             </span>
           </div>
+
           <div className="flex justify-between items-center mt-2">
-            <span className="text-sm text-gray-600 dark:text-gray-400">Total</span>
+            <span className="text-sm text-gray-600 dark:text-gray-400">
+              Total
+            </span>
+
             <span className="text-lg font-bold text-indigo-600 dark:text-indigo-400">
               ${order?.totalPrice?.toFixed(2) || '0.00'}
             </span>
           </div>
+
           <div className="flex justify-between items-center mt-2">
-            <span className="text-sm text-gray-600 dark:text-gray-400">Payment Method</span>
+            <span className="text-sm text-gray-600 dark:text-gray-400">
+              Payment Method
+            </span>
+
             <span className="text-sm font-medium text-gray-900 dark:text-white capitalize">
               {order?.paymentMethod || 'COD'}
             </span>
           </div>
+
           <div className="flex justify-between items-center mt-2">
-            <span className="text-sm text-gray-600 dark:text-gray-400">Shipping</span>
+            <span className="text-sm text-gray-600 dark:text-gray-400">
+              Shipping
+            </span>
+
             <span className="text-sm font-medium text-gray-900 dark:text-white capitalize">
               {order?.shippingMethod || 'Standard'}
             </span>
           </div>
+
+          {order?.couponCode && (
+            <div className="flex justify-between items-center mt-2">
+              <span className="text-sm text-gray-600 dark:text-gray-400">
+                Coupon
+              </span>
+              <span className="text-sm font-medium text-green-600 dark:text-green-400">
+                {order.couponCode} (-${order.couponDiscount?.toFixed(2) || '0.00'})
+              </span>
+            </div>
+          )}
+
           <div className="flex justify-between items-center mt-2 pt-2 border-t border-gray-200 dark:border-gray-600">
-            <span className="text-sm text-gray-600 dark:text-gray-400">Status</span>
+            <span className="text-sm text-gray-600 dark:text-gray-400">
+              Status
+            </span>
+
             <span className="px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300">
               {order?.status || 'Pending'}
             </span>
@@ -1135,10 +1272,13 @@ const OrderConfirmation = ({ order, onClose, onViewOrders }) => {
 
         {orderItems.length > 0 && (
           <div className="mt-4">
+
             <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-2">
               Order Items
             </h3>
+
             <div className="space-y-2 max-h-32 overflow-y-auto">
+
               {orderItems.map((item, index) => (
                 <div
                   key={index}
@@ -1147,22 +1287,26 @@ const OrderConfirmation = ({ order, onClose, onViewOrders }) => {
                   <span className="text-gray-600 dark:text-gray-300">
                     {item.name} x {item.quantity}
                   </span>
+
                   <span className="text-gray-900 dark:text-white font-medium">
                     ${item.totalPrice?.toFixed(2) || '0.00'}
                   </span>
                 </div>
               ))}
+
             </div>
           </div>
         )}
 
         <div className="mt-6 flex flex-col sm:flex-row gap-4">
+
           <button
             onClick={onViewOrders}
             className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
           >
             View My Orders
           </button>
+
           <button
             onClick={() => {
               onClose();
@@ -1172,12 +1316,19 @@ const OrderConfirmation = ({ order, onClose, onViewOrders }) => {
           >
             Continue Shopping
           </button>
+
         </div>
 
         <div className="mt-4 text-center text-xs text-gray-500 dark:text-gray-400">
-          <p>A confirmation email has been sent to your email address.</p>
-          <p className="mt-1">You can track your order from the Orders page.</p>
+          <p>
+            A confirmation email has been sent to your email address.
+          </p>
+
+          <p className="mt-1">
+            You can track your order from the Orders page.
+          </p>
         </div>
+
       </div>
     </div>
   );

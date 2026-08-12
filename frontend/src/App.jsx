@@ -6,7 +6,7 @@ import { getProfile } from './store/slices/authSlice';
 // Layout Components
 import Layout from './components/common/Layout';
 import SellerLayout from './components/seller/SellerLayout';
-import AdminLayout from './components/admin/AdminLayout';  // ✅ ဒါကိုထည့်ပါ
+import AdminLayout from './components/admin/AdminLayout';
 import ProtectedRoute from './components/common/ProtectedRoute';
 
 // Auth Pages
@@ -32,13 +32,16 @@ import NotFoundPage from './pages/NotFoundPage';
 import DashboardPage from './pages/admin/DashboardPage';
 import OrdersPage from './pages/admin/OrdersPage';
 import ProductsPage from './pages/admin/ProductsPage';
-import ProductFormPage from './pages/admin/ProductFormPage';
+// import ProductFormPage from './pages/admin/ProductFormPage'; // ❌ REMOVE THIS
 import UsersPage from './pages/admin/UsersPage';
 
 // Seller Pages
 import SellerDashboardPage from './pages/seller/SellerDashboardPage';
 import SellerProductsPage from './pages/seller/SellerProductsPage';
 import SellerOrdersPage from './pages/seller/SellerOrdersPage';
+
+// ✅ IMPORT ProductForm (the one with image upload)
+import ProductForm from './pages/ProductForm';
 
 const App = () => {
   const dispatch = useDispatch();
@@ -77,25 +80,27 @@ const App = () => {
           <Route path="*" element={<Navigate to="/404" replace />} />
         </Route>
 
-        {/* ✅ Admin Routes with AdminLayout */}
+        {/* ✅ Admin Routes - Using ProductForm */}
         <Route element={<ProtectedRoute adminOnly />}>
           <Route path="/admin" element={<AdminLayout />}>
             <Route index element={<DashboardPage />} />
             <Route path="orders" element={<OrdersPage />} />
             <Route path="products" element={<ProductsPage />} />
-            <Route path="products/create" element={<ProductFormPage />} />
-            <Route path="products/edit/:id" element={<ProductFormPage />} />
+            {/* ✅ Use ProductForm (with image upload) */}
+            <Route path="products/create" element={<ProductForm />} />
+            <Route path="products/edit/:id" element={<ProductForm />} />
             <Route path="users" element={<UsersPage />} />
           </Route>
         </Route>
 
-        {/* ✅ Seller Routes with SellerLayout */}
+        {/* ✅ Seller Routes - Using ProductForm */}
         <Route element={<ProtectedRoute sellerOnly />}>
           <Route path="/seller" element={<SellerLayout />}>
             <Route path="dashboard" element={<SellerDashboardPage />} />
             <Route path="products" element={<SellerProductsPage />} />
-            <Route path="products/create" element={<ProductFormPage />} />
-            <Route path="products/edit/:id" element={<ProductFormPage />} />
+            {/* ✅ Use ProductForm (with image upload) */}
+            <Route path="products/create" element={<ProductForm />} />
+            <Route path="products/edit/:id" element={<ProductForm />} />
             <Route path="orders" element={<SellerOrdersPage />} />
           </Route>
         </Route>

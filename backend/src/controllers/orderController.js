@@ -189,6 +189,7 @@ export const getOrders = asyncHandler(async (req, res) => {
       select: 'name slug price images',
       options: { lean: true }
     })
+    // ✅ REMOVED: subCategory populate
     .lean();
 
   const total = await Order.countDocuments(filter);
@@ -231,6 +232,7 @@ export const getMyOrders = asyncHandler(async (req, res) => {
       select: 'name slug price images',
       options: { lean: true }
     })
+    // ✅ REMOVED: subCategory populate
     .lean();
 
   const total = await Order.countDocuments(query);
@@ -275,6 +277,7 @@ export const getOrder = asyncHandler(async (req, res) => {
       select: 'name slug price images',
       options: { lean: true }
     })
+    // ✅ REMOVED: subCategory populate
     .populate('cancelledBy', 'name email')
     .lean();
 
@@ -495,6 +498,7 @@ export const getOrderTracking = asyncHandler(async (req, res) => {
     .select(
       'orderNumber status trackingNumber trackingProvider trackingUrl trackingHistory trackingLastUpdate shippingAddress estimatedDelivery'
     )
+    // ✅ REMOVED: subCategory populate
     .lean();
 
   if (!order) {
@@ -615,6 +619,7 @@ export const exportOrders = asyncHandler(async (req, res) => {
   const orders = await Order.find(filter)
     .populate('user', 'name email')
     .sort({ createdAt: -1 })
+    // ✅ REMOVED: subCategory populate
     .lean();
 
   if (orders.length === 0) {

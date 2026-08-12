@@ -131,13 +131,12 @@ export const getProducts = asyncHandler(async (req, res) => {
 
   // ✅ Role-based filtering
   if (admin) {
-    // Admin: အကုန်ပြမယ် (isPublished မစစ်ဘူး)
-    // ဘာမှမထည့်ဘူး
+    // Admin: Show all (no isPublished check)
   } else if (seller) {
-    // Seller: ကိုယ်ပိုင် Products ပဲပြမယ် (isPublished မစစ်ဘူး)
+    // Seller: Only own products (no isPublished check)
     filter.seller = seller;
   } else {
-    // Public: Published products ပဲပြမယ်
+    // Public: Only published products
     filter.isPublished = true;
   }
 
@@ -201,13 +200,13 @@ export const getProducts = asyncHandler(async (req, res) => {
     sortQuery[sort] = 1;
   }
 
-  // Execute query
+  // ✅ FIXED: Explicitly select fields including images
   const query = Product.find({ ...filter, ...searchQuery })
+    .select('name price images image stock rating numReviews discount isPublished isActive slug seller createdAt')
     .sort(sortQuery)
     .skip(skip)
     .limit(parseInt(limit))
     .populate('category', 'name slug')
-    .populate('subCategory', 'name slug')
     .populate('seller', 'name email');
 
   // If search, add text score
@@ -255,13 +254,11 @@ export const getProduct = asyncHandler(async (req, res) => {
   if (isObjectId) {
     product = await Product.findById(id)
       .populate('category', 'name slug')
-      .populate('subCategory', 'name slug')
       .populate('reviews.user', 'name profileImage')
       .populate('seller', 'name email');
   } else {
     product = await Product.findOne({ slug: id })
       .populate('category', 'name slug')
-      .populate('subCategory', 'name slug')
       .populate('reviews.user', 'name profileImage')
       .populate('seller', 'name email');
   }
@@ -505,13 +502,13 @@ export const updateStock = asyncHandler(async (req, res) => {
   }
 
   product.stock = stock;
-  product.isInStock = stock > 0;
+  product.hasStock = stock > 0;
   await product.save();
 
   res.status(200).json({
     success: true,
     message: 'Stock updated successfully',
-    data: { stock: product.stock, isInStock: product.isInStock }
+    data: { stock: product.stock, hasStock: product.hasStock }
   });
 });
 

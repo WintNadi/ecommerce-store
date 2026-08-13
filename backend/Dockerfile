@@ -1,8 +1,7 @@
-FROM node:18-alpine
+FROM node:22-alpine
 
 WORKDIR /app
 
-# ✅ Copy from backend folder
 COPY backend/package*.json ./backend/
 
 WORKDIR /app/backend

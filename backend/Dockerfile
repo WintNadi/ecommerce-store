@@ -1,20 +1,16 @@
-# Use Node.js 18 Alpine
 FROM node:18-alpine
 
-# Set working directory
 WORKDIR /app
 
-# Copy package files
-COPY package*.json ./
+# ✅ Copy from backend folder
+COPY backend/package*.json ./backend/
 
-# ✅ Use npm install instead of npm ci
+WORKDIR /app/backend
+
 RUN npm install --only=production
 
-# Copy source code
-COPY . .
+COPY backend/ ./
 
-# Expose port
 EXPOSE 5000
 
-# Start the application
 CMD ["node", "src/server.js"]

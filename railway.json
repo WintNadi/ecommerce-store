@@ -1,10 +1,10 @@
 {
   "build": {
     "builder": "NIXPACKS",
-    "buildCommand": "cd backend && npm ci",
-    "startCommand": "cd backend && NODE_ENV=production npm start"
+    "buildCommand": "cd backend && npm ci"
   },
   "deploy": {
+    "startCommand": "cd backend && npm start",
     "healthcheckPath": "/health",
     "restartPolicyType": "ON_FAILURE"
   }

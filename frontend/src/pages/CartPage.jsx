@@ -103,9 +103,9 @@ const CartPage = () => {
   // ✅ Loading state
   if (isLoading && items.length === 0) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+      <div className="min-h-screen flex items-center justify-center bg-white dark:bg-gray-900">
         <div className="text-center">
-          <Loader2 className="h-12 w-12 animate-spin text-indigo-600 mx-auto" />
+          <Loader2 className="h-12 w-12 animate-spin text-orange-500 mx-auto" />
           <p className="mt-4 text-gray-600 dark:text-gray-400">Loading your cart...</p>
         </div>
       </div>
@@ -115,7 +115,7 @@ const CartPage = () => {
   // ✅ Empty cart state
   if (!isLoading && items.length === 0) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-12">
+      <div className="min-h-screen bg-white dark:bg-gray-900 py-12">
         <div className="max-w-3xl mx-auto px-4 text-center">
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-12">
             <ShoppingCart className="h-20 w-20 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
@@ -127,7 +127,7 @@ const CartPage = () => {
             </p>
             <Link
               to="/shop"
-              className="inline-flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+              className="inline-flex items-center gap-2 px-6 py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
             >
               Start Shopping
             </Link>
@@ -140,7 +140,7 @@ const CartPage = () => {
   // ✅ Error state
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-12">
+      <div className="min-h-screen bg-white dark:bg-gray-900 py-12">
         <div className="max-w-3xl mx-auto px-4">
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8">
             <div className="flex items-center gap-3 text-red-600 dark:text-red-400 mb-4">
@@ -150,7 +150,7 @@ const CartPage = () => {
             <p className="text-gray-600 dark:text-gray-400">{error}</p>
             <button
               onClick={() => dispatch(getCart())}
-              className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+              className="mt-4 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
             >
               Try Again
             </button>
@@ -161,13 +161,13 @@ const CartPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8">
+    <div className="min-h-screen bg-white dark:bg-gray-900 py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-              <ShoppingCart className="h-6 w-6 text-indigo-600" />
+              <ShoppingCart className="h-6 w-6 text-orange-500" />
               Shopping Cart
             </h1>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
@@ -176,7 +176,7 @@ const CartPage = () => {
           </div>
           <button
             onClick={handleContinueShopping}
-            className="flex items-center gap-2 text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white transition-colors"
+            className="flex items-center gap-2 text-navy-600 hover:text-navy-700 dark:text-navy-400 dark:hover:text-navy-300 transition-colors"
           >
             <ArrowLeft className="h-4 w-4" />
             Continue Shopping
@@ -223,7 +223,7 @@ const CartPage = () => {
                         <div className="flex-1 min-w-0">
                           <Link
                             to={`/product/${productId}`}
-                            className="text-base font-medium text-gray-900 dark:text-white hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
+                            className="text-base font-medium text-gray-900 dark:text-white hover:text-navy-600 dark:hover:text-navy-400 transition-colors"
                           >
                             {item.name}
                           </Link>
@@ -248,7 +248,7 @@ const CartPage = () => {
                               </button>
                               <span className="w-10 text-center text-sm font-medium">
                                 {isUpdatingThisItem ? (
-                                  <Loader2 className="h-4 w-4 animate-spin mx-auto text-indigo-600" />
+                                  <Loader2 className="h-4 w-4 animate-spin mx-auto text-orange-500" />
                                 ) : (
                                   item.quantity || 1
                                 )}
@@ -338,7 +338,7 @@ const CartPage = () => {
                 <div className="border-t border-gray-200 dark:border-gray-700 pt-3">
                   <div className="flex justify-between text-lg font-bold">
                     <span className="text-gray-900 dark:text-white">Total</span>
-                    <span className="text-indigo-600 dark:text-indigo-400">
+                    <span className="text-orange-500 dark:text-orange-400">
                       ${totalAmount.toFixed(2)}
                     </span>
                   </div>
@@ -352,7 +352,7 @@ const CartPage = () => {
               <button
                 onClick={handleCheckout}
                 disabled={items.length === 0 || isUpdating}
-                className="w-full mt-4 px-6 py-3 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="w-full mt-4 px-6 py-3 bg-orange-500 text-white font-medium rounded-lg hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {isUpdating ? (
                   <span className="flex items-center justify-center gap-2">
@@ -373,8 +373,7 @@ const CartPage = () => {
               )}
 
               <div className="mt-4 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg text-xs text-gray-500 dark:text-gray-400 space-y-1">
-                <p>✅ Free shipping on orders over $50</p>
-                <p>🛡️ Secure checkout with SSL encryption</p>
+                <p>✅ Secure checkout with SSL encryption</p>
                 <p>🔄 30-day money-back guarantee</p>
               </div>
             </div>

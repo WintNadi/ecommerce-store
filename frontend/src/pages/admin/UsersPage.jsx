@@ -16,9 +16,11 @@ import {
   Trash2,
   Mail,
   Phone,
-  Calendar
+  Calendar,
+  AlertCircle
 } from 'lucide-react';
 import { getAllUsers, updateUserRole, deleteUser, clearUserError } from '../../store/slices/adminSlice';
+import toast from 'react-hot-toast';
 
 const UsersPage = () => {
   const dispatch = useDispatch();
@@ -41,18 +43,28 @@ const UsersPage = () => {
 
   const handleRoleUpdate = async () => {
     if (selectedUser && newRole) {
-      await dispatch(updateUserRole({ userId: selectedUser._id, role: newRole })).unwrap();
-      setShowRoleModal(false);
-      setSelectedUser(null);
-      setNewRole('');
+      try {
+        await dispatch(updateUserRole({ userId: selectedUser._id, role: newRole })).unwrap();
+        toast.success(`User role updated to ${newRole}`);
+        setShowRoleModal(false);
+        setSelectedUser(null);
+        setNewRole('');
+      } catch (error) {
+        toast.error(error.message || 'Failed to update role');
+      }
     }
   };
 
   const handleDeleteUser = async () => {
     if (selectedUser) {
-      await dispatch(deleteUser(selectedUser._id)).unwrap();
-      setShowDeleteModal(false);
-      setSelectedUser(null);
+      try {
+        await dispatch(deleteUser(selectedUser._id)).unwrap();
+        toast.success('User deleted successfully');
+        setShowDeleteModal(false);
+        setSelectedUser(null);
+      } catch (error) {
+        toast.error(error.message || 'Failed to delete user');
+      }
     }
   };
 
@@ -92,7 +104,7 @@ const UsersPage = () => {
   if (isLoading && users.length === 0) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
-        <Loader2 className="h-12 w-12 animate-spin text-indigo-600" />
+        <Loader2 className="h-12 w-12 animate-spin text-orange-500" />
       </div>
     );
   }
@@ -104,20 +116,20 @@ const UsersPage = () => {
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
           <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-              <Users className="h-6 w-6" />
+              <Users className="h-6 w-6 text-orange-500" />
               User Management
             </h1>
             <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
               Manage your users and their roles
             </p>
           </div>
-          <span className="text-sm text-gray-500 dark:text-gray-400">
+          <span className="text-sm text-gray-500 dark:text-gray-400 bg-white dark:bg-gray-800 px-3 py-1 rounded-lg border border-gray-200 dark:border-gray-700">
             Total: {pagination?.total || 0} users
           </span>
         </div>
 
         {/* Filters */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 mb-6">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 mb-6 border border-gray-200 dark:border-gray-700">
           <form onSubmit={handleSearch} className="flex flex-col sm:flex-row gap-4">
             <div className="flex-1 relative">
               <input
@@ -125,7 +137,7 @@ const UsersPage = () => {
                 placeholder="Search users by name, email..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full px-4 py-2 pl-10 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
+                className="w-full px-4 py-2 pl-10 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/50 dark:bg-gray-700 dark:text-white transition-all"
               />
               <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
             </div>
@@ -141,20 +153,24 @@ const UsersPage = () => {
           </form>
         </div>
 
+        {/* Error */}
         {error && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4 dark:bg-red-900/30 dark:border-red-700 dark:text-red-300">
-            {error}
-            <button
-              onClick={() => dispatch(clearUserError())}
-              className="ml-2 text-sm font-medium hover:underline"
-            >
-              Dismiss
-            </button>
+          <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg flex items-start gap-3">
+            <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+              <button
+                onClick={() => dispatch(clearUserError())}
+                className="text-sm text-red-600 hover:text-red-700 dark:text-red-400 mt-1"
+              >
+                Dismiss
+              </button>
+            </div>
           </div>
         )}
 
         {/* Users Table */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden border border-gray-200 dark:border-gray-700">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -173,7 +189,7 @@ const UsersPage = () => {
                     <tr key={user._id} className="border-b border-gray-100 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center">
+                          <div className="w-10 h-10 rounded-full bg-navy-100 dark:bg-navy-900/30 flex items-center justify-center">
                             {user.profileImage ? (
                               <img
                                 src={user.profileImage}
@@ -181,7 +197,7 @@ const UsersPage = () => {
                                 className="w-10 h-10 rounded-full object-cover"
                               />
                             ) : (
-                              <User className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+                              <User className="h-5 w-5 text-navy-600 dark:text-navy-400" />
                             )}
                           </div>
                           <div>
@@ -236,7 +252,7 @@ const UsersPage = () => {
                               setNewRole(user.role);
                               setShowRoleModal(true);
                             }}
-                            className="p-1.5 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                            className="p-1.5 text-gray-400 hover:text-navy-600 dark:hover:text-navy-400 transition-colors"
                             title="Change Role"
                           >
                             <Edit className="h-4 w-4" />
@@ -258,7 +274,10 @@ const UsersPage = () => {
                 ) : (
                   <tr>
                     <td colSpan="6" className="py-8 text-center text-gray-500 dark:text-gray-400">
-                      No users found.
+                      <div className="flex flex-col items-center gap-2">
+                        <AlertCircle className="h-8 w-8 text-gray-400" />
+                        <p>No users found.</p>
+                      </div>
                     </td>
                   </tr>
                 )}
@@ -268,11 +287,11 @@ const UsersPage = () => {
 
           {/* Pagination */}
           {pagination && pagination.pages > 1 && (
-            <div className="flex justify-between items-center px-4 py-3 border-t border-gray-200 dark:border-gray-700">
+            <div className="flex flex-col sm:flex-row justify-between items-center gap-4 px-4 py-3 border-t border-gray-200 dark:border-gray-700">
               <button
                 onClick={() => handlePageChange(pagination.page - 1)}
                 disabled={pagination.page === 1}
-                className="flex items-center gap-1 px-3 py-1 text-sm border border-gray-300 dark:border-gray-700 rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                className="flex items-center gap-1 px-3 py-1 text-sm border border-gray-300 dark:border-gray-700 rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300"
               >
                 <ChevronLeft className="h-4 w-4" />
                 Previous
@@ -283,7 +302,7 @@ const UsersPage = () => {
               <button
                 onClick={() => handlePageChange(pagination.page + 1)}
                 disabled={pagination.page === pagination.pages}
-                className="flex items-center gap-1 px-3 py-1 text-sm border border-gray-300 dark:border-gray-700 rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                className="flex items-center gap-1 px-3 py-1 text-sm border border-gray-300 dark:border-gray-700 rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300"
               >
                 Next
                 <ChevronRight className="h-4 w-4" />
@@ -296,7 +315,7 @@ const UsersPage = () => {
       {/* Change Role Modal */}
       {showRoleModal && selectedUser && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6 border border-gray-200 dark:border-gray-700">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                 Change User Role
@@ -319,7 +338,7 @@ const UsersPage = () => {
             <select
               value={newRole}
               onChange={(e) => setNewRole(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white mb-4"
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/50 dark:bg-gray-700 dark:text-white transition-all mb-4"
             >
               <option value="user">User</option>
               <option value="seller">Seller</option>
@@ -331,13 +350,13 @@ const UsersPage = () => {
                   setShowRoleModal(false);
                   setSelectedUser(null);
                 }}
-                className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300"
               >
                 Cancel
               </button>
               <button
                 onClick={handleRoleUpdate}
-                className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                className="flex-1 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition-colors"
               >
                 Update Role
               </button>
@@ -349,7 +368,7 @@ const UsersPage = () => {
       {/* Delete Confirmation Modal */}
       {showDeleteModal && selectedUser && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6 border border-gray-200 dark:border-gray-700">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                 Delete User
@@ -375,13 +394,13 @@ const UsersPage = () => {
                   setShowDeleteModal(false);
                   setSelectedUser(null);
                 }}
-                className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300"
               >
                 Cancel
               </button>
               <button
                 onClick={handleDeleteUser}
-                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
               >
                 Yes, Delete
               </button>

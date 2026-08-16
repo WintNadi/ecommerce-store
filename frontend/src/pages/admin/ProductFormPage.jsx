@@ -10,8 +10,9 @@ import {
   getProducts
 } from '../../store/slices/productSlice';
 import { getCategories } from '../../store/slices/categorySlice';
-import { ArrowLeft, Loader2, Plus, X } from 'lucide-react';
+import { ArrowLeft, Loader2, Plus, X, AlertCircle } from 'lucide-react';
 import ErrorMessage from '../../components/common/ErrorMessage';
+import toast from 'react-hot-toast';
 
 const ProductFormPage = () => {
   const { id } = useParams();
@@ -81,6 +82,7 @@ const ProductFormPage = () => {
     if (success) {
       dispatch(getProducts({ page: 1, limit: 10 }));
       dispatch(clearProductSuccess());
+      toast.success(isEdit ? 'Product updated successfully!' : 'Product created successfully!');
       
       const currentPath = window.location.pathname;
       if (currentPath.includes('/admin')) {
@@ -89,7 +91,7 @@ const ProductFormPage = () => {
         navigate('/seller/products');
       }
     }
-  }, [success, dispatch, navigate]);
+  }, [success, dispatch, navigate, isEdit]);
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -113,6 +115,7 @@ const ProductFormPage = () => {
         images: [...formData.images, { url: newImage.trim(), isPrimary: formData.images.length === 0 }]
       });
       setNewImage('');
+      toast.success('Image added');
     }
   };
 
@@ -122,6 +125,7 @@ const ProductFormPage = () => {
       newImages[0].isPrimary = true;
     }
     setFormData({ ...formData, images: newImages });
+    toast.success('Image removed');
   };
 
   const handleAddTag = () => {
@@ -144,7 +148,24 @@ const ProductFormPage = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // ✅ category က empty string ဆိုရင် null ပို့ပါ
+    // Validate required fields
+    if (!formData.name.trim()) {
+      toast.error('Product name is required');
+      return;
+    }
+    if (!formData.description.trim()) {
+      toast.error('Product description is required');
+      return;
+    }
+    if (!formData.price || parseFloat(formData.price) <= 0) {
+      toast.error('Please enter a valid price');
+      return;
+    }
+    if (!formData.stock || parseInt(formData.stock) < 0) {
+      toast.error('Please enter a valid stock quantity');
+      return;
+    }
+
     const submitData = {
       ...formData,
       price: parseFloat(formData.price),
@@ -160,14 +181,14 @@ const ProductFormPage = () => {
         await dispatch(createProduct(submitData)).unwrap();
       }
     } catch (error) {
-      console.error('Failed to save product:', error);
+      toast.error(error.message || 'Failed to save product');
     }
   };
 
   if (isEdit && isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
-        <Loader2 className="h-12 w-12 animate-spin text-indigo-600" />
+        <Loader2 className="h-12 w-12 animate-spin text-orange-500" />
       </div>
     );
   }
@@ -180,7 +201,7 @@ const ProductFormPage = () => {
           <div className="flex items-center gap-4">
             <Link
               to={window.location.pathname.includes('/admin') ? '/admin/products' : '/seller/products'}
-              className="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+              className="text-gray-600 hover:text-navy-600 dark:text-gray-400 dark:hover:text-navy-400 transition-colors"
             >
               <ArrowLeft className="h-5 w-5" />
             </Link>
@@ -195,7 +216,7 @@ const ProductFormPage = () => {
           onClear={() => dispatch(clearProductError())} 
         />
 
-        <form onSubmit={handleSubmit} className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
+        <form onSubmit={handleSubmit} className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 border border-gray-200 dark:border-gray-700">
           <div className="space-y-6">
             {/* Basic Info */}
             <div>
@@ -211,7 +232,7 @@ const ProductFormPage = () => {
                     value={formData.name}
                     onChange={handleChange}
                     required
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/50 dark:bg-gray-700 dark:text-white transition-all"
                   />
                 </div>
                 <div>
@@ -223,7 +244,7 @@ const ProductFormPage = () => {
                     name="shortDescription"
                     value={formData.shortDescription}
                     onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/50 dark:bg-gray-700 dark:text-white transition-all"
                     placeholder="Brief description (max 500 characters)"
                   />
                 </div>
@@ -237,7 +258,7 @@ const ProductFormPage = () => {
                     onChange={handleChange}
                     required
                     rows={5}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white resize-none"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/50 dark:bg-gray-700 dark:text-white transition-all resize-none"
                   />
                 </div>
               </div>
@@ -254,7 +275,7 @@ const ProductFormPage = () => {
                   name="category"
                   value={formData.category}
                   onChange={handleChange}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/50 dark:bg-gray-700 dark:text-white transition-all"
                 >
                   <option value="">Select a category (optional)</option>
                   {categories?.map((category) => (
@@ -282,7 +303,7 @@ const ProductFormPage = () => {
                     required
                     min="0"
                     step="0.01"
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/50 dark:bg-gray-700 dark:text-white transition-all"
                   />
                 </div>
                 <div>
@@ -296,7 +317,7 @@ const ProductFormPage = () => {
                     onChange={handleChange}
                     min="0"
                     step="0.01"
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/50 dark:bg-gray-700 dark:text-white transition-all"
                   />
                 </div>
                 <div>
@@ -310,7 +331,7 @@ const ProductFormPage = () => {
                     onChange={handleChange}
                     required
                     min="0"
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/50 dark:bg-gray-700 dark:text-white transition-all"
                   />
                 </div>
               </div>
@@ -325,33 +346,41 @@ const ProductFormPage = () => {
                   placeholder="Image URL"
                   value={newImage}
                   onChange={(e) => setNewImage(e.target.value)}
-                  className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
+                  className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/50 dark:bg-gray-700 dark:text-white transition-all"
                 />
                 <button
                   type="button"
                   onClick={handleAddImage}
-                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                  className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition-colors"
                 >
                   <Plus className="h-5 w-5" />
                 </button>
               </div>
+              {formData.images.length === 0 && (
+                <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
+                  No images added yet. Add image URLs above.
+                </p>
+              )}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 {formData.images.map((img, index) => (
                   <div key={index} className="relative group">
                     <img
                       src={img.url}
                       alt={`Product ${index + 1}`}
-                      className="w-full h-32 object-cover rounded-lg"
+                      className="w-full h-32 object-cover rounded-lg border border-gray-200 dark:border-gray-700"
+                      onError={(e) => {
+                        e.target.src = '/images/placeholder.svg';
+                      }}
                     />
                     {img.isPrimary && (
-                      <span className="absolute top-2 left-2 px-2 py-0.5 text-xs font-medium bg-indigo-600 text-white rounded">
+                      <span className="absolute top-2 left-2 px-2 py-0.5 text-xs font-medium bg-orange-500 text-white rounded">
                         Primary
                       </span>
                     )}
                     <button
                       type="button"
                       onClick={() => handleRemoveImage(index)}
-                      className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
                     >
                       <X className="h-4 w-4" />
                     </button>
@@ -373,7 +402,7 @@ const ProductFormPage = () => {
                     name="attributes.brand"
                     value={formData.attributes.brand}
                     onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/50 dark:bg-gray-700 dark:text-white transition-all"
                   />
                 </div>
                 <div>
@@ -385,7 +414,7 @@ const ProductFormPage = () => {
                     name="attributes.color"
                     value={formData.attributes.color}
                     onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/50 dark:bg-gray-700 dark:text-white transition-all"
                   />
                 </div>
                 <div>
@@ -397,7 +426,7 @@ const ProductFormPage = () => {
                     name="attributes.material"
                     value={formData.attributes.material}
                     onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/50 dark:bg-gray-700 dark:text-white transition-all"
                   />
                 </div>
               </div>
@@ -413,27 +442,30 @@ const ProductFormPage = () => {
                   value={newTag}
                   onChange={(e) => setNewTag(e.target.value)}
                   onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddTag())}
-                  className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
+                  className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/50 dark:bg-gray-700 dark:text-white transition-all"
                 />
                 <button
                   type="button"
                   onClick={handleAddTag}
-                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                  className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition-colors"
                 >
                   Add
                 </button>
               </div>
               <div className="flex flex-wrap gap-2">
+                {formData.tags.length === 0 && (
+                  <p className="text-sm text-gray-500 dark:text-gray-400">No tags added yet.</p>
+                )}
                 {formData.tags.map((tag) => (
                   <span
                     key={tag}
-                    className="flex items-center gap-1 px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded-full text-sm"
+                    className="flex items-center gap-1 px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded-full text-sm text-gray-700 dark:text-gray-300"
                   >
                     {tag}
                     <button
                       type="button"
                       onClick={() => handleRemoveTag(tag)}
-                      className="text-gray-500 hover:text-red-500"
+                      className="text-gray-500 hover:text-red-500 transition-colors"
                     >
                       <X className="h-3 w-3" />
                     </button>
@@ -446,23 +478,23 @@ const ProductFormPage = () => {
             <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Status</h2>
               <div className="flex flex-wrap gap-6">
-                <label className="flex items-center gap-2">
+                <label className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="checkbox"
                     name="isPublished"
                     checked={formData.isPublished}
                     onChange={handleChange}
-                    className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 rounded"
+                    className="h-4 w-4 text-orange-500 focus:ring-orange-500 rounded"
                   />
                   <span className="text-sm text-gray-700 dark:text-gray-300">Published</span>
                 </label>
-                <label className="flex items-center gap-2">
+                <label className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="checkbox"
                     name="isFeatured"
                     checked={formData.isFeatured}
                     onChange={handleChange}
-                    className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 rounded"
+                    className="h-4 w-4 text-orange-500 focus:ring-orange-500 rounded"
                   />
                   <span className="text-sm text-gray-700 dark:text-gray-300">Featured</span>
                 </label>
@@ -470,11 +502,11 @@ const ProductFormPage = () => {
             </div>
 
             {/* Submit */}
-            <div className="border-t border-gray-200 dark:border-gray-700 pt-6 flex gap-4">
+            <div className="border-t border-gray-200 dark:border-gray-700 pt-6 flex flex-col sm:flex-row gap-4">
               <button
                 type="submit"
                 disabled={isLoading}
-                className="flex-1 px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="flex-1 px-6 py-3 bg-orange-500 hover:bg-orange-600 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
               >
                 {isLoading ? (
                   <Loader2 className="h-5 w-5 animate-spin mx-auto" />
@@ -484,7 +516,7 @@ const ProductFormPage = () => {
               </button>
               <Link
                 to={window.location.pathname.includes('/admin') ? '/admin/products' : '/seller/products'}
-                className="flex-1 px-6 py-3 border border-gray-300 dark:border-gray-700 rounded-lg text-center hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                className="flex-1 px-6 py-3 border border-gray-300 dark:border-gray-700 rounded-lg text-center hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300 font-medium"
               >
                 Cancel
               </Link>

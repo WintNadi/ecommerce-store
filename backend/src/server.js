@@ -21,7 +21,7 @@ import categoryRoutes from './routes/categoryRoutes.js';
 import paymentRoutes from './routes/paymentRoutes.js';
 // ✅ Import Seller Coupon Routes
 import sellerCouponRoutes from './routes/sellerCouponRoutes.js';
-// ✅ Import Admin Coupon Routes (if you have one)
+// ✅ Import Admin Coupon Routes
 import couponRoutes from './routes/couponRoutes.js';
 
 // Import Middleware
@@ -277,9 +277,7 @@ const startServer = async () => {
       console.log('  🔍 Smart Search');
       console.log('  📊 CSV Export');
       console.log('  📍 Order Tracking');
-      console.log('  🎨 Mood-Based Store');
-      console.log('  🌙 Dark Mode');
-      console.log('  🏷️ Coupon System'); // ✅ Added
+      console.log('  🏷️ Coupon System');
       console.log('═══════════════════════════════════════════════\n');
     });
 

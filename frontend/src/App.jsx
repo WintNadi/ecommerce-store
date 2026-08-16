@@ -2,6 +2,8 @@ import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { getProfile } from './store/slices/authSlice';
+import { Toaster } from 'react-hot-toast';
+import ErrorBoundary from './components/common/ErrorBoundary';
 
 // Layout Components
 import Layout from './components/common/Layout';
@@ -59,76 +61,125 @@ const App = () => {
   }, [dispatch, isAuthenticated, accessToken]);
 
   return (
-    <BrowserRouter>
-      <Routes>
-        {/* ============================================
-            PUBLIC ROUTES WITH LAYOUT
-            ============================================ */}
-        <Route path="/" element={<Layout />}>
-          <Route index element={<HomePage />} />
-          <Route path="shop" element={<ShopPage />} />
-          <Route path="product/:id" element={<ProductPage />} />
-          <Route path="cart" element={<CartPage />} />
-          <Route path="seller/:id" element={<SellerStorePage />} />
+    <>
+      {/* Toast Notifications Container */}
+      <Toaster
+        position="top-right"
+        toastOptions={{
+          duration: 4000,
+          style: {
+            background: '#363636',
+            color: '#fff',
+            borderRadius: '8px',
+            padding: '12px 16px',
+            fontSize: '14px',
+            maxWidth: '420px',
+          },
+          success: {
+            duration: 3000,
+            iconTheme: {
+              primary: '#10B981',
+              secondary: '#fff',
+            },
+            style: {
+              background: '#065F46',
+              color: '#fff',
+            },
+          },
+          error: {
+            duration: 4000,
+            iconTheme: {
+              primary: '#EF4444',
+              secondary: '#fff',
+            },
+            style: {
+              background: '#991B1B',
+              color: '#fff',
+            },
+          },
+          loading: {
+            style: {
+              background: '#1F2937',
+              color: '#fff',
+            },
+          },
+        }}
+      />
 
-          {/* Auth Routes */}
-          <Route path="login" element={<LoginPage />} />
-          <Route path="register" element={<RegisterPage />} />
+      {/* Error Boundary - Wraps entire app to catch errors */}
+      <ErrorBoundary>
+        <BrowserRouter>
+          <Routes>
+            {/* ============================================
+                PUBLIC ROUTES WITH LAYOUT
+                ============================================ */}
+            <Route path="/" element={<Layout />}>
+              <Route index element={<HomePage />} />
+              <Route path="shop" element={<ShopPage />} />
+              <Route path="product/:id" element={<ProductPage />} />
+              <Route path="cart" element={<CartPage />} />
+              <Route path="seller/:id" element={<SellerStorePage />} />
 
-          {/* Protected User Routes */}
-          <Route element={<ProtectedRoute />}>
-            <Route path="profile" element={<ProfilePage />} />
-            <Route path="orders" element={<OrderHistoryPage />} />
-            <Route path="orders/:id" element={<OrderDetailsPage />} />
-            <Route path="orders/:id/tracking" element={<OrderTrackingPage />} />
-            <Route path="wishlist" element={<WishlistPage />} />
-            <Route path="checkout" element={<CheckoutPage />} />
-          </Route>
+              {/* Auth Routes */}
+              <Route path="login" element={<LoginPage />} />
+              <Route path="register" element={<RegisterPage />} />
 
-          {/* 404 & Catch-all */}
-          <Route path="404" element={<NotFoundPage />} />
-          <Route path="*" element={<Navigate to="/404" replace />} />
-        </Route>
+              {/* Protected User Routes */}
+              <Route element={<ProtectedRoute />}>
+                <Route path="profile" element={<ProfilePage />} />
+                <Route path="orders" element={<OrderHistoryPage />} />
+                <Route path="orders/:id" element={<OrderDetailsPage />} />
+                <Route path="orders/:id/tracking" element={<OrderTrackingPage />} />
+                <Route path="wishlist" element={<WishlistPage />} />
+                <Route path="checkout" element={<CheckoutPage />} />
+              </Route>
 
-        {/* ============================================
-            SELLER ROUTES (Public - Registration)
-            ============================================ */}
-        <Route path="/seller/register" element={<SellerRegistrationPage />} />
+              {/* 404 & Catch-all */}
+              <Route path="404" element={<NotFoundPage />} />
+              <Route path="*" element={<Navigate to="/404" replace />} />
+            </Route>
 
-        {/* ============================================
-            SELLER ROUTES (Protected)
-            ============================================ */}
-        <Route element={<ProtectedRoute sellerOnly />}>
-          <Route path="/seller" element={<SellerLayout />}>
-            <Route index element={<Navigate to="/seller/dashboard" replace />} />
-            <Route path="dashboard" element={<SellerDashboardPage />} />
-            <Route path="products" element={<SellerProductsPage />} />
-            <Route path="products/create" element={<SellerProductForm />} />
-            <Route path="products/edit/:id" element={<SellerProductForm />} />
-            <Route path="orders" element={<SellerOrdersPage />} />
-            <Route path="coupons" element={<SellerCouponManagement />} />
-            <Route path="profile" element={<SellerProfilePage />} />
-          </Route>
-        </Route>
+            {/* ============================================
+                SELLER ROUTES (Public - Registration)
+                ============================================ */}
+            <Route path="/seller/register" element={<SellerRegistrationPage />} />
 
-        {/* ============================================
-            ADMIN ROUTES (Protected)
-            ============================================ */}
-        <Route element={<ProtectedRoute adminOnly />}>
-          <Route path="/admin" element={<AdminLayout />}>
-            <Route index element={<DashboardPage />} />
-            <Route path="orders" element={<OrdersPage />} />
-            <Route path="products" element={<ProductsPage />} />
-            <Route path="products/create" element={<ProductFormPage />} />
-            <Route path="products/edit/:id" element={<ProductFormPage />} />
-            <Route path="users" element={<UsersPage />} />
-            <Route path="coupons" element={<CouponManagement />} />
-            <Route path="refunds" element={<RefundManagement />} />
-            <Route path="reviews" element={<ReviewModeration />} />
-          </Route>
-        </Route>
-      </Routes>
-    </BrowserRouter>
+            {/* ============================================
+                SELLER ROUTES (Protected)
+                ============================================ */}
+            <Route element={<ProtectedRoute sellerOnly />}>
+              <Route path="/seller" element={<SellerLayout />}>
+                <Route index element={<Navigate to="/seller/dashboard" replace />} />
+                <Route path="dashboard" element={<SellerDashboardPage />} />
+                <Route path="products" element={<SellerProductsPage />} />
+                <Route path="products/create" element={<SellerProductForm />} />
+                <Route path="products/edit/:id" element={<SellerProductForm />} />
+                <Route path="orders" element={<SellerOrdersPage />} />
+                <Route path="coupons" element={<SellerCouponManagement />} />
+                <Route path="profile" element={<SellerProfilePage />} />
+              </Route>
+            </Route>
+
+            {/* ============================================
+                ADMIN ROUTES (Protected)
+                ============================================ */}
+            <Route element={<ProtectedRoute adminOnly />}>
+              <Route path="/admin" element={<AdminLayout />}>
+                <Route index element={<DashboardPage />} />
+                <Route path="orders" element={<OrdersPage />} />
+                <Route path="products" element={<ProductsPage />} />
+                <Route path="products/create" element={<ProductFormPage />} />
+                <Route path="products/edit/:id" element={<ProductFormPage />} />
+                <Route path="users" element={<UsersPage />} />
+                <Route path="coupons" element={<CouponManagement />} />
+                <Route path="refunds" element={<RefundManagement />} />
+                <Route path="reviews" element={<ReviewModeration />} />
+              </Route>
+            </Route>
+          </Routes>
+        </BrowserRouter>
+      </ErrorBoundary>
+    </>
   );
 };
 

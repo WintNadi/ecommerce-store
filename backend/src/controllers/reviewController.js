@@ -14,7 +14,7 @@ import { AppError } from '../middleware/errorHandler.js';
  * @access  Private
  */
 export const createReview = asyncHandler(async (req, res) => {
-  const { productId, rating, title, comment, images } = req.body;
+  const { productId, rating, title, comment } = req.body;
 
   // Validate input
   if (!productId) {
@@ -58,9 +58,8 @@ export const createReview = asyncHandler(async (req, res) => {
     product: productId,
     order: hasPurchased ? hasPurchased._id : undefined,
     rating,
-    title,
+    title: title || '',
     comment,
-    images: images || [],
     isVerifiedPurchase: !!hasPurchased,
     isApproved: req.user.role === 'admin' || !!hasPurchased,
     ipAddress: req.ip,
@@ -203,7 +202,7 @@ export const getReview = asyncHandler(async (req, res) => {
  */
 export const updateReview = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const { rating, title, comment, images } = req.body;
+  const { rating, title, comment } = req.body;
 
   const review = await Review.findById(id);
 
@@ -218,9 +217,8 @@ export const updateReview = asyncHandler(async (req, res) => {
 
   // Update fields
   if (rating) review.rating = rating;
-  if (title) review.title = title;
+  if (title !== undefined) review.title = title;
   if (comment) review.comment = comment;
-  if (images) review.images = images;
 
   // If rating changed, reset approval status (need admin approval again)
   if (rating && rating !== review.rating) {

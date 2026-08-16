@@ -473,9 +473,9 @@ const CheckoutPage = () => {
   // ============================================
   if (showResumePage) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8 flex items-center justify-center">
+      <div className="min-h-screen bg-white dark:bg-gray-900 py-8 flex items-center justify-center">
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8 max-w-md w-full text-center">
-          <Package className="h-16 w-16 text-indigo-600 mx-auto mb-4" />
+          <Package className="h-16 w-16 text-orange-500 mx-auto mb-4" />
           <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
             Resume Your Payment
           </h2>
@@ -484,7 +484,7 @@ const CheckoutPage = () => {
           </p>
           <button
             onClick={handleTryAgain}
-            className="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+            className="px-6 py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
           >
             Continue Payment
           </button>
@@ -497,24 +497,24 @@ const CheckoutPage = () => {
   // MAIN CHECKOUT UI
   // ============================================
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8">
+    <div className="min-h-screen bg-white dark:bg-gray-900 py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 
-        {/* PROGRESS STEPS */}
+        {/* PROGRESS STEPS - Updated with Orange */}
         <div className="flex items-center justify-center mb-8">
           <div className="flex items-center gap-2">
 
             <div
               className={`flex items-center gap-2 ${
                 step >= 1
-                  ? 'text-indigo-600'
+                  ? 'text-orange-500'
                   : 'text-gray-400'
               }`}
             >
               <div
                 className={`w-8 h-8 rounded-full flex items-center justify-center ${
                   step >= 1
-                    ? 'bg-indigo-600 text-white'
+                    ? 'bg-orange-500 text-white'
                     : 'bg-gray-200 dark:bg-gray-700'
                 }`}
               >
@@ -529,7 +529,7 @@ const CheckoutPage = () => {
             <div
               className={`w-12 h-0.5 ${
                 step >= 2
-                  ? 'bg-indigo-600'
+                  ? 'bg-orange-500'
                   : 'bg-gray-300 dark:bg-gray-700'
               }`}
             />
@@ -537,14 +537,14 @@ const CheckoutPage = () => {
             <div
               className={`flex items-center gap-2 ${
                 step >= 2
-                  ? 'text-indigo-600'
+                  ? 'text-orange-500'
                   : 'text-gray-400'
               }`}
             >
               <div
                 className={`w-8 h-8 rounded-full flex items-center justify-center ${
                   step >= 2
-                    ? 'bg-indigo-600 text-white'
+                    ? 'bg-orange-500 text-white'
                     : 'bg-gray-200 dark:bg-gray-700'
                 }`}
               >
@@ -559,7 +559,7 @@ const CheckoutPage = () => {
             <div
               className={`w-12 h-0.5 ${
                 step >= 3
-                  ? 'bg-indigo-600'
+                  ? 'bg-orange-500'
                   : 'bg-gray-300 dark:bg-gray-700'
               }`}
             />
@@ -567,14 +567,14 @@ const CheckoutPage = () => {
             <div
               className={`flex items-center gap-2 ${
                 step >= 3
-                  ? 'text-indigo-600'
+                  ? 'text-orange-500'
                   : 'text-gray-400'
               }`}
             >
               <div
                 className={`w-8 h-8 rounded-full flex items-center justify-center ${
                   step >= 3
-                    ? 'bg-indigo-600 text-white'
+                    ? 'bg-orange-500 text-white'
                     : 'bg-gray-200 dark:bg-gray-700'
                 }`}
               >
@@ -611,7 +611,7 @@ const CheckoutPage = () => {
 
                       <button
                         onClick={handleTryAgain}
-                        className="mt-2 text-sm font-medium text-indigo-600 hover:text-indigo-500 dark:text-indigo-400"
+                        className="mt-2 text-sm font-medium text-orange-500 hover:text-orange-600 dark:text-orange-400"
                       >
                         Try Again
                       </button>
@@ -620,11 +620,11 @@ const CheckoutPage = () => {
                 </div>
               )}
 
-              {/* STEP 1 */}
+              {/* STEP 1 - Address */}
               {step === 1 && (
                 <div>
                   <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                    <MapPin className="h-5 w-5 text-indigo-600" />
+                    <MapPin className="h-5 w-5 text-orange-500" />
                     Shipping Address
                   </h2>
 
@@ -640,7 +640,7 @@ const CheckoutPage = () => {
                         name="street"
                         value={address.street}
                         onChange={handleAddressChange}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-orange-500 dark:bg-gray-700 dark:text-white"
                         placeholder="123 Main Street"
                       />
                     </div>
@@ -657,7 +657,7 @@ const CheckoutPage = () => {
                           name="city"
                           value={address.city}
                           onChange={handleAddressChange}
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-orange-500 dark:bg-gray-700 dark:text-white"
                           placeholder="Yangon"
                         />
                       </div>
@@ -672,7 +672,7 @@ const CheckoutPage = () => {
                           name="state"
                           value={address.state}
                           onChange={handleAddressChange}
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-orange-500 dark:bg-gray-700 dark:text-white"
                           placeholder="Yangon"
                         />
                       </div>
@@ -690,7 +690,7 @@ const CheckoutPage = () => {
                           name="zipCode"
                           value={address.zipCode}
                           onChange={handleAddressChange}
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-orange-500 dark:bg-gray-700 dark:text-white"
                           placeholder="11111"
                         />
                       </div>
@@ -705,7 +705,7 @@ const CheckoutPage = () => {
                           name="country"
                           value={address.country}
                           onChange={handleAddressChange}
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-orange-500 dark:bg-gray-700 dark:text-white"
                           placeholder="Myanmar"
                         />
                       </div>
@@ -721,7 +721,7 @@ const CheckoutPage = () => {
                         name="phone"
                         value={address.phone}
                         onChange={handleAddressChange}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-orange-500 dark:bg-gray-700 dark:text-white"
                         placeholder="+959123456789"
                       />
                     </div>
@@ -729,11 +729,11 @@ const CheckoutPage = () => {
                 </div>
               )}
 
-              {/* STEP 2 */}
+              {/* STEP 2 - Payment & Shipping */}
               {step === 2 && (
                 <div>
                   <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                    <CreditCard className="h-5 w-5 text-indigo-600" />
+                    <CreditCard className="h-5 w-5 text-orange-500" />
                     Payment & Shipping
                   </h2>
 
@@ -752,7 +752,7 @@ const CheckoutPage = () => {
                             key={method}
                             className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${
                               shippingMethod === method
-                                ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20'
+                                ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/20'
                                 : 'border-gray-200 dark:border-gray-700'
                             }`}
                           >
@@ -762,7 +762,7 @@ const CheckoutPage = () => {
                               value={method}
                               checked={shippingMethod === method}
                               onChange={(e) => setShippingMethod(e.target.value)}
-                              className="h-4 w-4 text-indigo-600 focus:ring-indigo-500"
+                              className="h-4 w-4 text-orange-500 focus:ring-orange-500"
                             />
 
                             <div className="flex-1">
@@ -794,7 +794,7 @@ const CheckoutPage = () => {
                         <label
                           className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${
                             paymentMethod === 'stripe'
-                              ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20'
+                              ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/20'
                               : 'border-gray-200 dark:border-gray-700'
                           }`}
                         >
@@ -807,7 +807,7 @@ const CheckoutPage = () => {
                               setPaymentMethod(e.target.value);
                               setPaymentError(null);
                             }}
-                            className="h-4 w-4 text-indigo-600 focus:ring-indigo-500"
+                            className="h-4 w-4 text-orange-500 focus:ring-orange-500"
                           />
 
                           <div className="flex-1">
@@ -827,7 +827,7 @@ const CheckoutPage = () => {
                         <label
                           className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${
                             paymentMethod === 'paypal'
-                              ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20'
+                              ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/20'
                               : 'border-gray-200 dark:border-gray-700'
                           }`}
                         >
@@ -840,7 +840,7 @@ const CheckoutPage = () => {
                               setPaymentMethod(e.target.value);
                               setPaymentError(null);
                             }}
-                            className="h-4 w-4 text-indigo-600 focus:ring-indigo-500"
+                            className="h-4 w-4 text-orange-500 focus:ring-orange-500"
                           />
 
                           <div className="flex-1">
@@ -860,7 +860,7 @@ const CheckoutPage = () => {
                         <label
                           className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${
                             paymentMethod === 'cod'
-                              ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20'
+                              ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/20'
                               : 'border-gray-200 dark:border-gray-700'
                           }`}
                         >
@@ -873,7 +873,7 @@ const CheckoutPage = () => {
                               setPaymentMethod(e.target.value);
                               setPaymentError(null);
                             }}
-                            className="h-4 w-4 text-indigo-600 focus:ring-indigo-500"
+                            className="h-4 w-4 text-orange-500 focus:ring-orange-500"
                           />
 
                           <div className="flex-1">
@@ -922,13 +922,13 @@ const CheckoutPage = () => {
                             value={couponInput}
                             onChange={(e) => setCouponInput(e.target.value)}
                             placeholder="Enter coupon code"
-                            className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
+                            className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-orange-500 dark:bg-gray-700 dark:text-white"
                             disabled={applyingCoupon}
                           />
                           <button
                             onClick={handleApplyCoupon}
                             disabled={applyingCoupon}
-                            className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                            className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                           >
                             {applyingCoupon ? (
                               <Loader2 className="h-4 w-4 animate-spin" />
@@ -944,7 +944,7 @@ const CheckoutPage = () => {
                       )}
                     </div>
 
-                    {/* ✅ STRIPE PAYMENT - ONLY SHOW WHEN clientSecret EXISTS */}
+                    {/* ✅ STRIPE PAYMENT */}
                     {paymentMethod === 'stripe' && clientSecret && (
                       <div className="mt-4 p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
                         <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
@@ -957,7 +957,7 @@ const CheckoutPage = () => {
                             appearance: {
                               theme: 'stripe',
                               variables: { 
-                                colorPrimary: '#4F46E5',
+                                colorPrimary: '#E86A33',
                                 colorBackground: '#ffffff',
                                 colorText: '#1a202c'
                               }
@@ -981,7 +981,7 @@ const CheckoutPage = () => {
                       isCreatingOrder && (
                         <div className="mt-4 p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
                           <div className="flex items-center justify-center py-4">
-                            <Loader2 className="h-6 w-6 animate-spin text-indigo-600 mr-2" />
+                            <Loader2 className="h-6 w-6 animate-spin text-orange-500 mr-2" />
                             <span className="text-gray-600 dark:text-gray-400">
                               Creating your order...
                             </span>
@@ -995,7 +995,7 @@ const CheckoutPage = () => {
                       !isCreatingOrder && (
                         <button
                           onClick={handleNextStep}
-                          className="w-full mt-4 px-6 py-3 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 transition-colors"
+                          className="w-full mt-4 px-6 py-3 bg-orange-500 text-white font-medium rounded-lg hover:bg-orange-600 transition-colors"
                         >
                           Continue to Payment
                         </button>
@@ -1066,7 +1066,7 @@ const CheckoutPage = () => {
                 {step === 1 && (
                   <button
                     onClick={handleNextStep}
-                    className="flex items-center gap-2 px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                    className="flex items-center gap-2 px-6 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
                   >
                     Continue
                     <ChevronRight className="h-4 w-4" />
@@ -1136,7 +1136,7 @@ const CheckoutPage = () => {
                       Total
                     </span>
 
-                    <span className="text-indigo-600 dark:text-indigo-400">
+                    <span className="text-orange-500 dark:text-orange-400">
                       ${finalTotal.toFixed(2)}
                     </span>
 
@@ -1153,7 +1153,6 @@ const CheckoutPage = () => {
               )}
 
               <div className="mt-4 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg text-xs text-gray-600 dark:text-gray-300 space-y-1">
-                <p>✅ Free shipping on orders over $50</p>
                 <p>🛡️ Secure checkout with SSL encryption</p>
                 <p>🔄 30-day money-back guarantee</p>
               </div>
@@ -1223,7 +1222,7 @@ const OrderConfirmation = ({ order, onClose, onViewOrders }) => {
               Total
             </span>
 
-            <span className="text-lg font-bold text-indigo-600 dark:text-indigo-400">
+            <span className="text-lg font-bold text-orange-500 dark:text-orange-400">
               ${order?.totalPrice?.toFixed(2) || '0.00'}
             </span>
           </div>
@@ -1302,7 +1301,7 @@ const OrderConfirmation = ({ order, onClose, onViewOrders }) => {
 
           <button
             onClick={onViewOrders}
-            className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+            className="flex-1 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
           >
             View My Orders
           </button>

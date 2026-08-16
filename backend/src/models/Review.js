@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 
 /**
  * Review Schema - E-Commerce Review Model
- * ထုတ်ကုန်သုံးသပ်ချက်များကို စီမံခန့်ခွဲမယ်
+ * Product reviews with verification and moderation
  */
 const reviewSchema = new mongoose.Schema(
   {
@@ -44,18 +44,8 @@ const reviewSchema = new mongoose.Schema(
       type: String,
       required: true,
       trim: true,
-      maxlength: [1000, 'Comment cannot be more than 1000 characters']
+      maxlength: [2000, 'Comment cannot be more than 2000 characters']
     },
-
-    // ============================================
-    // MEDIA
-    // ============================================
-    images: [
-      {
-        url: String,
-        publicId: String
-      }
-    ],
 
     // ============================================
     // VERIFICATION
@@ -98,8 +88,13 @@ const reviewSchema = new mongoose.Schema(
     // ADMIN RESPONSE
     // ============================================
     adminResponse: {
-      comment: String,
-      respondedAt: Date,
+      comment: {
+        type: String,
+        maxlength: [500, 'Response cannot be more than 500 characters']
+      },
+      respondedAt: {
+        type: Date
+      },
       respondedBy: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User'
@@ -142,7 +137,7 @@ reviewSchema.index({ user: 1, createdAt: -1 });
 // ============================================
 
 reviewSchema.pre('save', function (next) {
-  // Auto-approve if user is admin or verified purchase
+  // Auto-approve if user is verified purchase
   if (this.isVerifiedPurchase) {
     this.isApproved = true;
   }
@@ -160,10 +155,9 @@ reviewSchema.pre('save', function (next) {
 // ============================================
 
 /**
- * Mark as helpful
+ * Mark review as helpful
  */
 reviewSchema.methods.markAsHelpful = async function (userId) {
-  // Check if user already voted
   const existingVote = this.helpfulUsers.find(
     vote => vote.user.toString() === userId.toString()
   );
@@ -172,7 +166,6 @@ reviewSchema.methods.markAsHelpful = async function (userId) {
     if (existingVote.type === 'helpful') {
       throw new Error('You already marked this review as helpful');
     }
-    // Change from unhelpful to helpful
     existingVote.type = 'helpful';
     this.helpfulCount += 1;
   } else {
@@ -184,7 +177,7 @@ reviewSchema.methods.markAsHelpful = async function (userId) {
 };
 
 /**
- * Mark as unhelpful
+ * Mark review as unhelpful
  */
 reviewSchema.methods.markAsUnhelpful = async function (userId) {
   const existingVote = this.helpfulUsers.find(
@@ -195,7 +188,6 @@ reviewSchema.methods.markAsUnhelpful = async function (userId) {
     if (existingVote.type === 'unhelpful') {
       throw new Error('You already marked this review as unhelpful');
     }
-    // Change from helpful to unhelpful
     existingVote.type = 'unhelpful';
     this.helpfulCount -= 1;
   } else {
@@ -225,7 +217,7 @@ reviewSchema.methods.reject = async function (reason = '') {
 };
 
 /**
- * Add admin response
+ * Add admin response to review
  */
 reviewSchema.methods.addAdminResponse = async function (comment, adminId) {
   this.adminResponse = {
@@ -313,7 +305,6 @@ reviewSchema.statics.getProductRatingStats = async function (productId) {
   const result = stats[0];
   const distribution = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
 
-  // Count ratings by star
   const ratingCounts = await this.aggregate([
     {
       $match: {

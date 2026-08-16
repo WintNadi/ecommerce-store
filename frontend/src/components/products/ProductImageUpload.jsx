@@ -7,7 +7,7 @@ const ProductImageUpload = ({
   productId, 
   existingImages = [], 
   onUploadSuccess,
-  onFileSelect, // ✅ Pass selected files to parent
+  onFileSelect,
   isCreatingNew = false,
   maxFiles = 5,
   maxSize = 5 * 1024 * 1024 // 5MB
@@ -17,7 +17,7 @@ const ProductImageUpload = ({
   const [error, setError] = useState(null);
   const [tempImageUrls, setTempImageUrls] = useState([]);
   const [cloudUrl, setCloudUrl] = useState('');
-  const [selectedFiles, setSelectedFiles] = useState([]); // ✅ Store actual files
+  const [selectedFiles, setSelectedFiles] = useState([]);
 
   // Update images when existingImages changes
   useEffect(() => {
@@ -47,7 +47,7 @@ const ProductImageUpload = ({
       setError(null);
 
       try {
-        // ✅ Store the actual files for later upload
+        // Store the actual files for later upload
         const newFiles = [...selectedFiles, ...acceptedFiles];
         setSelectedFiles(newFiles);
         
@@ -138,10 +138,7 @@ const ProductImageUpload = ({
 
     // If it's a temp image, also remove from selected files
     if (isTemp) {
-      // Find and remove the corresponding file
-      // Since we can't match directly, we remove by index from selectedFiles
       const newFiles = [...selectedFiles];
-      // If we have files and the index is valid
       if (newFiles.length > index) {
         newFiles.splice(index, 1);
         setSelectedFiles(newFiles);
@@ -159,7 +156,7 @@ const ProductImageUpload = ({
         newTempUrls.splice(tempIndex, 1);
         setTempImageUrls(newTempUrls);
       }
-      // ✅ Revoke the object URL to free memory
+      // Revoke the object URL to free memory
       URL.revokeObjectURL(imageToDelete);
     }
 
@@ -204,8 +201,8 @@ const ProductImageUpload = ({
 
       {/* Info Banner for new products */}
       {isCreatingNew && (
-        <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-          <p className="text-sm text-blue-600 dark:text-blue-400 flex items-center gap-2">
+        <div className="p-3 bg-navy-50 dark:bg-navy-900/20 border border-navy-200 dark:border-navy-800 rounded-lg">
+          <p className="text-sm text-navy-600 dark:text-navy-400 flex items-center gap-2">
             <ImageIcon className="h-4 w-4" />
             Upload images now. They will be uploaded when you save the product.
           </p>
@@ -223,13 +220,13 @@ const ProductImageUpload = ({
             value={cloudUrl}
             onChange={(e) => setCloudUrl(e.target.value)}
             placeholder="https://drive.google.com/your-image.jpg"
-            className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
+            className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/50 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-all"
             onKeyPress={(e) => e.key === 'Enter' && handleAddCloudUrl()}
           />
           <button
             type="button"
             onClick={handleAddCloudUrl}
-            className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors flex items-center gap-2"
+            className="px-4 py-2 bg-navy-500 hover:bg-navy-600 text-white rounded-lg transition-colors flex items-center gap-2"
           >
             <Link className="h-4 w-4" />
             Add URL
@@ -248,20 +245,20 @@ const ProductImageUpload = ({
         {...getRootProps()}
         className={`
           border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors
-          ${isDragActive ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20' : 'border-gray-300 dark:border-gray-700'}
-          ${uploading ? 'opacity-50 cursor-not-allowed' : 'hover:border-indigo-500'}
+          ${isDragActive ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/20' : 'border-gray-300 dark:border-gray-700'}
+          ${uploading ? 'opacity-50 cursor-not-allowed' : 'hover:border-orange-500'}
         `}
       >
         <input {...getInputProps()} disabled={uploading} />
         
         {uploading ? (
           <div className="space-y-2">
-            <Loader2 className="h-12 w-12 mx-auto text-indigo-600 animate-spin" />
+            <Loader2 className="h-12 w-12 mx-auto text-orange-500 animate-spin" />
             <p className="text-gray-600 dark:text-gray-400">Preparing images...</p>
           </div>
         ) : (
           <div>
-            <Upload className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+            <Upload className="h-12 w-12 mx-auto text-gray-400 dark:text-gray-500 mb-4" />
             <p className="text-gray-600 dark:text-gray-400">
               {isDragActive ? 'Drop images here' : 'Drag & drop images here, or click to select'}
             </p>
@@ -272,7 +269,7 @@ const ProductImageUpload = ({
               {images.length} / {maxFiles} images uploaded
             </p>
             {isCreatingNew && (
-              <p className="text-xs text-indigo-600 dark:text-indigo-400 mt-2">
+              <p className="text-xs text-orange-500 dark:text-orange-400 mt-2">
                 💡 Images will be uploaded when you save the product
               </p>
             )}
@@ -295,26 +292,25 @@ const ProductImageUpload = ({
             return (
               <div 
                 key={index} 
-                className="relative group border rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700"
+                className="relative group border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700"
               >
                 <img
                   src={image}
                   alt={`Product ${index + 1}`}
                   className="w-full h-32 object-cover"
                   onError={(e) => {
-                    // ✅ Use local placeholder instead of external
                     e.target.src = '/images/placeholder.svg';
                   }}
                 />
                 
                 {/* Badges */}
                 {isTemp && (
-                  <div className="absolute top-1 left-1 px-2 py-0.5 bg-yellow-500 text-white text-xs rounded-full">
+                  <div className="absolute top-1 left-1 px-2 py-0.5 bg-orange-500 text-white text-xs rounded-full">
                     New
                   </div>
                 )}
                 {isCloudUrl && (
-                  <div className="absolute top-1 left-1 px-2 py-0.5 bg-blue-500 text-white text-xs rounded-full">
+                  <div className="absolute top-1 left-1 px-2 py-0.5 bg-navy-500 text-white text-xs rounded-full">
                     Cloud
                   </div>
                 )}
@@ -326,7 +322,7 @@ const ProductImageUpload = ({
                 >
                   <Trash2 className="h-4 w-4" />
                 </button>
-                <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-xs px-2 py-1">
+                <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-xs px-2 py-1 text-center">
                   {index + 1}
                 </div>
               </div>
@@ -338,7 +334,7 @@ const ProductImageUpload = ({
       {/* Image count */}
       {images.length > 0 && (
         <div className="flex items-center gap-2">
-          <CheckCircle className="h-4 w-4 text-green-600" />
+          <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
           <p className="text-sm text-green-600 dark:text-green-400">
             {images.length} image(s) ready
             {isCreatingNew && ' - Will be uploaded when saved'}

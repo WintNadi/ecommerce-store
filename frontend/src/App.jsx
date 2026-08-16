@@ -7,7 +7,7 @@ import { getProfile } from './store/slices/authSlice';
 import Layout from './components/common/Layout';
 import SellerLayout from './components/seller/SellerLayout';
 import AdminLayout from './components/admin/AdminLayout';
-import ProtectedRoute from './components/common/ProtectedRoute';
+import ProtectedRoute from './components/auth/ProtectedRoute';
 
 // Auth Pages
 import LoginPage from './pages/auth/LoginPage';
@@ -71,10 +71,11 @@ const App = () => {
           <Route path="cart" element={<CartPage />} />
           <Route path="seller/:id" element={<SellerStorePage />} />
 
+          {/* Auth Routes */}
           <Route path="login" element={<LoginPage />} />
           <Route path="register" element={<RegisterPage />} />
 
-          {/* User Routes */}
+          {/* Protected User Routes */}
           <Route element={<ProtectedRoute />}>
             <Route path="profile" element={<ProfilePage />} />
             <Route path="orders" element={<OrderHistoryPage />} />
@@ -84,6 +85,7 @@ const App = () => {
             <Route path="checkout" element={<CheckoutPage />} />
           </Route>
 
+          {/* 404 & Catch-all */}
           <Route path="404" element={<NotFoundPage />} />
           <Route path="*" element={<Navigate to="/404" replace />} />
         </Route>
@@ -110,7 +112,7 @@ const App = () => {
         </Route>
 
         {/* ============================================
-            ADMIN ROUTES
+            ADMIN ROUTES (Protected)
             ============================================ */}
         <Route element={<ProtectedRoute adminOnly />}>
           <Route path="/admin" element={<AdminLayout />}>

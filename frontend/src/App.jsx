@@ -27,6 +27,7 @@ import ProductPage from './pages/ProductPage';
 import CartPage from './pages/CartPage';
 import CheckoutPage from './pages/CheckoutPage';
 import NotFoundPage from './pages/NotFoundPage';
+import SellerStorePage from './pages/SellerStorePage';
 
 // Admin Pages
 import DashboardPage from './pages/admin/DashboardPage';
@@ -34,17 +35,18 @@ import OrdersPage from './pages/admin/OrdersPage';
 import ProductsPage from './pages/admin/ProductsPage';
 import ProductFormPage from './pages/admin/ProductFormPage';
 import UsersPage from './pages/admin/UsersPage';
-// ✅ Admin Coupon Management
 import CouponManagement from './pages/admin/CouponManagement';
+import RefundManagement from './pages/admin/RefundManagement';
+import ReviewModeration from './pages/admin/ReviewModeration';
 
 // Seller Pages
 import SellerDashboardPage from './pages/seller/SellerDashboardPage';
 import SellerProductsPage from './pages/seller/SellerProductsPage';
 import SellerOrdersPage from './pages/seller/SellerOrdersPage';
-// ✅ Seller Product Form (with discount fields)
 import SellerProductForm from './pages/seller/SellerProductForm';
-// ✅ Seller Coupon Management
 import SellerCouponManagement from './pages/seller/SellerCouponManagement';
+import SellerProfilePage from './pages/seller/SellerProfilePage';
+import SellerRegistrationPage from './pages/seller/SellerRegistrationPage';
 
 const App = () => {
   const dispatch = useDispatch();
@@ -67,6 +69,7 @@ const App = () => {
           <Route path="shop" element={<ShopPage />} />
           <Route path="product/:id" element={<ProductPage />} />
           <Route path="cart" element={<CartPage />} />
+          <Route path="seller/:id" element={<SellerStorePage />} />
 
           <Route path="login" element={<LoginPage />} />
           <Route path="register" element={<RegisterPage />} />
@@ -86,6 +89,27 @@ const App = () => {
         </Route>
 
         {/* ============================================
+            SELLER ROUTES (Public - Registration)
+            ============================================ */}
+        <Route path="/seller/register" element={<SellerRegistrationPage />} />
+
+        {/* ============================================
+            SELLER ROUTES (Protected)
+            ============================================ */}
+        <Route element={<ProtectedRoute sellerOnly />}>
+          <Route path="/seller" element={<SellerLayout />}>
+            <Route index element={<Navigate to="/seller/dashboard" replace />} />
+            <Route path="dashboard" element={<SellerDashboardPage />} />
+            <Route path="products" element={<SellerProductsPage />} />
+            <Route path="products/create" element={<SellerProductForm />} />
+            <Route path="products/edit/:id" element={<SellerProductForm />} />
+            <Route path="orders" element={<SellerOrdersPage />} />
+            <Route path="coupons" element={<SellerCouponManagement />} />
+            <Route path="profile" element={<SellerProfilePage />} />
+          </Route>
+        </Route>
+
+        {/* ============================================
             ADMIN ROUTES
             ============================================ */}
         <Route element={<ProtectedRoute adminOnly />}>
@@ -96,25 +120,9 @@ const App = () => {
             <Route path="products/create" element={<ProductFormPage />} />
             <Route path="products/edit/:id" element={<ProductFormPage />} />
             <Route path="users" element={<UsersPage />} />
-            {/* ✅ Admin Coupon Management */}
             <Route path="coupons" element={<CouponManagement />} />
-          </Route>
-        </Route>
-
-        {/* ============================================
-            SELLER ROUTES
-            ============================================ */}
-        <Route element={<ProtectedRoute sellerOnly />}>
-          <Route path="/seller" element={<SellerLayout />}>
-            <Route index element={<Navigate to="/seller/dashboard" replace />} />
-            <Route path="dashboard" element={<SellerDashboardPage />} />
-            <Route path="products" element={<SellerProductsPage />} />
-            {/* ✅ Seller Product Form (with discount fields) */}
-            <Route path="products/create" element={<SellerProductForm />} />
-            <Route path="products/edit/:id" element={<SellerProductForm />} />
-            <Route path="orders" element={<SellerOrdersPage />} />
-            {/* ✅ Seller Coupon Management */}
-            <Route path="coupons" element={<SellerCouponManagement />} />
+            <Route path="refunds" element={<RefundManagement />} />
+            <Route path="reviews" element={<ReviewModeration />} />
           </Route>
         </Route>
       </Routes>

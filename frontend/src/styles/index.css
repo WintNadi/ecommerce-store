@@ -7,7 +7,18 @@
 ============================================ */
 @layer base {
   body {
-    @apply antialiased bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white;
+    @apply antialiased bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-200;
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+
+  /* Headings */
+  h1, h2, h3, h4, h5, h6 {
+    @apply text-gray-900 dark:text-white;
+  }
+
+  /* Links */
+  a {
+    @apply text-navy-600 hover:text-navy-700 dark:text-navy-400 dark:hover:text-navy-300;
   }
 
   /* Scrollbar Styling */
@@ -30,96 +41,53 @@
 }
 
 /* ============================================
-   MOOD-BASED THEMES
+   🎨 NAVY + WHITE + ORANGE COLOR SCHEME
 ============================================ */
-/* Calm Mood */
-.mood-calm {
-  --mood-primary: #10B981;
-  --mood-primary-dark: #059669;
-  --mood-bg-start: #ECFDF5;
-  --mood-bg-end: #D1FAE5;
+
+/* ✅ Primary Buttons - Orange */
+.btn-primary {
+  @apply bg-orange-500 hover:bg-orange-600 text-white font-medium rounded-lg transition-colors;
 }
 
-/* Energetic Mood */
-.mood-energetic {
-  --mood-primary: #F97316;
-  --mood-primary-dark: #EA580C;
-  --mood-bg-start: #FFF7ED;
-  --mood-bg-end: #FFEDD5;
+/* ✅ Secondary Buttons - Navy */
+.btn-secondary {
+  @apply bg-navy-500 hover:bg-navy-600 text-white font-medium rounded-lg transition-colors;
 }
 
-/* Luxury Mood */
-.mood-luxury {
-  --mood-primary: #D97706;
-  --mood-primary-dark: #B45309;
-  --mood-bg-start: #FFFBEB;
-  --mood-bg-end: #FEF3C7;
+/* ✅ Outline Buttons - Navy */
+.btn-outline {
+  @apply border-2 border-navy-500 text-navy-500 hover:bg-navy-500 hover:text-white font-medium rounded-lg transition-colors;
 }
 
-/* Dark Mood */
-.mood-dark {
-  --mood-primary: #8B5CF6;
-  --mood-primary-dark: #7C3AED;
-  --mood-bg-start: #1F2937;
-  --mood-bg-end: #111827;
+/* ✅ Danger Buttons - Red */
+.btn-danger {
+  @apply bg-red-500 hover:bg-red-600 text-white font-medium rounded-lg transition-colors;
 }
 
-/* Light Mood */
-.mood-light {
-  --mood-primary: #0EA5E9;
-  --mood-primary-dark: #0284C7;
-  --mood-bg-start: #F0F9FF;
-  --mood-bg-end: #E0F2FE;
+/* ✅ Sale Badge - Red */
+.badge-sale {
+  @apply bg-red-500 text-white font-bold px-3 py-1 rounded-full text-sm;
 }
 
-/* Default Mood */
-.mood-default {
-  --mood-primary: #4F46E5;
-  --mood-primary-dark: #4338CA;
-  --mood-bg-start: #F9FAFB;
-  --mood-bg-end: #F3F4F6;
+/* ✅ Add to Cart Button - Orange */
+.btn-add-to-cart {
+  @apply bg-orange-500 hover:bg-orange-600 text-white font-medium px-6 py-3 rounded-lg transition-colors;
 }
 
-/* Apply mood colors to elements */
-.mood-calm .bg-indigo-600 { background-color: var(--mood-primary) !important; }
-.mood-calm .hover\:bg-indigo-700:hover { background-color: var(--mood-primary-dark) !important; }
-.mood-calm .text-indigo-600 { color: var(--mood-primary) !important; }
-.mood-calm .ring-indigo-500 { --tw-ring-color: var(--mood-primary) !important; }
-.mood-calm .focus\:ring-indigo-500:focus { --tw-ring-color: var(--mood-primary) !important; }
-.mood-calm .border-indigo-200 { border-color: var(--mood-primary) !important; }
-.mood-calm .bg-indigo-50 { background-color: var(--mood-bg-start) !important; }
+/* ✅ Header - Navy */
+.header-nav {
+  @apply bg-navy-500 text-white;
+}
 
-.mood-energetic .bg-indigo-600 { background-color: var(--mood-primary) !important; }
-.mood-energetic .hover\:bg-indigo-700:hover { background-color: var(--mood-primary-dark) !important; }
-.mood-energetic .text-indigo-600 { color: var(--mood-primary) !important; }
-.mood-energetic .ring-indigo-500 { --tw-ring-color: var(--mood-primary) !important; }
-.mood-energetic .focus\:ring-indigo-500:focus { --tw-ring-color: var(--mood-primary) !important; }
-.mood-energetic .border-indigo-200 { border-color: var(--mood-primary) !important; }
-.mood-energetic .bg-indigo-50 { background-color: var(--mood-bg-start) !important; }
+/* ✅ Footer - Navy */
+.footer {
+  @apply bg-navy-500 text-white;
+}
 
-.mood-luxury .bg-indigo-600 { background-color: var(--mood-primary) !important; }
-.mood-luxury .hover\:bg-indigo-700:hover { background-color: var(--mood-primary-dark) !important; }
-.mood-luxury .text-indigo-600 { color: var(--mood-primary) !important; }
-.mood-luxury .ring-indigo-500 { --tw-ring-color: var(--mood-primary) !important; }
-.mood-luxury .focus\:ring-indigo-500:focus { --tw-ring-color: var(--mood-primary) !important; }
-.mood-luxury .border-indigo-200 { border-color: var(--mood-primary) !important; }
-.mood-luxury .bg-indigo-50 { background-color: var(--mood-bg-start) !important; }
-
-.mood-dark .bg-indigo-600 { background-color: var(--mood-primary) !important; }
-.mood-dark .hover\:bg-indigo-700:hover { background-color: var(--mood-primary-dark) !important; }
-.mood-dark .text-indigo-600 { color: var(--mood-primary) !important; }
-.mood-dark .ring-indigo-500 { --tw-ring-color: var(--mood-primary) !important; }
-.mood-dark .focus\:ring-indigo-500:focus { --tw-ring-color: var(--mood-primary) !important; }
-.mood-dark .border-indigo-200 { border-color: var(--mood-primary) !important; }
-.mood-dark .bg-indigo-50 { background-color: var(--mood-bg-start) !important; }
-
-.mood-light .bg-indigo-600 { background-color: var(--mood-primary) !important; }
-.mood-light .hover\:bg-indigo-700:hover { background-color: var(--mood-primary-dark) !important; }
-.mood-light .text-indigo-600 { color: var(--mood-primary) !important; }
-.mood-light .ring-indigo-500 { --tw-ring-color: var(--mood-primary) !important; }
-.mood-light .focus\:ring-indigo-500:focus { --tw-ring-color: var(--mood-primary) !important; }
-.mood-light .border-indigo-200 { border-color: var(--mood-primary) !important; }
-.mood-light .bg-indigo-50 { background-color: var(--mood-bg-start) !important; }
+/* ✅ Header/Footer Links */
+.header-footer-link {
+  @apply text-white/80 hover:text-white transition-colors;
+}
 
 /* ============================================
    ANIMATIONS
@@ -214,13 +182,6 @@
 }
 
 /* ============================================
-   GRADIENT BACKGROUNDS
-============================================ */
-.bg-gradient-mood {
-  background: linear-gradient(135deg, var(--mood-bg-start), var(--mood-bg-end));
-}
-
-/* ============================================
    RESPONSIVE UTILITIES
 ============================================ */
 @layer utilities {
@@ -266,11 +227,10 @@
 /* ============================================
    DARK MODE OVERRIDES
 ============================================ */
-.dark .mood-light,
-.dark .mood-default,
-.dark .mood-calm,
-.dark .mood-energetic,
-.dark .mood-luxury {
-  --mood-bg-start: #1F2937;
-  --mood-bg-end: #111827;
+.dark .product-card {
+  @apply bg-gray-800;
+}
+
+.dark .btn-outline {
+  @apply border-navy-400 text-navy-400 hover:bg-navy-400 hover:text-white;
 }

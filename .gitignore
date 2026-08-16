@@ -1,28 +1,115 @@
-# Environment Variables
-.env
-.env.*
-!.env.example
-*.backup
-*.bak
-
-# Dependencies
+# ============================================
+# DEPENDENCIES
+# ============================================
 node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 package-lock.json
+yarn.lock
+pnpm-lock.yaml
 
-# Logs
-logs/
-*.log
+# ============================================
+# ENVIRONMENT VARIABLES
+# ============================================
+.env
+.env.local
+.env.*.local
+.env.backup
+.env.production
+.env.staging
+*.env.backup
 
-# OS Files
-.DS_Store
-Thumbs.db
-
-# Build
+# ============================================
+# BUILD OUTPUTS
+# ============================================
 dist/
 build/
+.out/
+.next/
+.nuxt/
+.vuepress/dist/
 
-# IDE
+# ============================================
+# LOGS
+# ============================================
+logs/
+*.log
+*.log.*
+
+# ============================================
+# OS FILES
+# ============================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# ============================================
+# IDE FILES
+# ============================================
 .vscode/
 .idea/
 *.swp
 *.swo
+*~
+.project
+.classpath
+.settings/
+*.iml
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# ============================================
+# TESTING
+# ============================================
+coverage/
+.nyc_output/
+*.test.js
+*.spec.js
+__tests__/
+*.test.jsx
+*.spec.jsx
+
+# ============================================
+# BACKUP FILES
+# ============================================
+*.backup
+*.bak
+*.tmp
+*.temp
+*.cache
+
+# ============================================
+# UPLOADS (Images, etc.)
+# ============================================
+uploads/
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.webp
+*.svg
+
+# ============================================
+# DATABASE
+# ============================================
+*.db
+*.sqlite
+*.sqlite3
+
+# ============================================
+# MISCELLANEOUS
+# ============================================
+*.zip
+*.tar.gz
+*.rar
+.vercel
+netlify.toml

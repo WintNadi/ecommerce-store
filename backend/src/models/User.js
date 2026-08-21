@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
+import jwt from 'jsonwebtoken';
 
 /**
  * User Schema - E-Commerce User Model
@@ -66,6 +67,100 @@ const userSchema = new mongoose.Schema(
     bio: {
       type: String,
       maxlength: [500, 'Bio cannot be more than 500 characters']
+    },
+
+    // ============================================
+    // SELLER PROFILE (NEW - Phase 5)
+    // ============================================
+    sellerProfile: {
+      storeName: {
+        type: String,
+        trim: true,
+        maxlength: [100, 'Store name cannot be more than 100 characters']
+      },
+      storeDescription: {
+        type: String,
+        maxlength: [1000, 'Store description cannot be more than 1000 characters']
+      },
+      storeLogo: {
+        type: String,
+        default: ''
+      },
+      storeBanner: {
+        type: String,
+        default: ''
+      },
+      storeSlug: {
+        type: String,
+        unique: true,
+        sparse: true,
+        lowercase: true,
+        trim: true
+      },
+      isStoreActive: {
+        type: Boolean,
+        default: false
+      },
+      storeCategory: {
+        type: String,
+        enum: ['electronics', 'fashion', 'home', 'books', 'beauty', 'food', 'sports', 'toys', 'other'],
+        default: 'other'
+      },
+      storeAddress: {
+        street: String,
+        city: String,
+        state: String,
+        zipCode: String,
+        country: {
+          type: String,
+          default: 'Myanmar'
+        }
+      },
+      socialLinks: {
+        facebook: String,
+        instagram: String,
+        twitter: String,
+        youtube: String,
+        website: String
+      },
+      businessLicense: {
+        type: String,
+        default: ''
+      },
+      taxId: {
+        type: String,
+        default: ''
+      },
+      isVerified: {
+        type: Boolean,
+        default: false
+      },
+      rating: {
+        type: Number,
+        default: 0,
+        min: 0,
+        max: 5
+      },
+      totalSales: {
+        type: Number,
+        default: 0
+      },
+      totalProducts: {
+        type: Number,
+        default: 0
+      },
+      joinedAt: {
+        type: Date,
+        default: Date.now
+      },
+      isOnboarded: {
+        type: Boolean,
+        default: false
+      },
+      onBoardingStep: {
+        type: Number,
+        default: 1
+      }
     },
 
     // ============================================
@@ -215,6 +310,10 @@ userSchema.index({ isVerified: 1 });
 userSchema.index({ 'addresses.city': 1 });
 userSchema.index({ createdAt: -1 });
 
+// Seller indexes
+userSchema.index({ 'sellerProfile.storeSlug': 1 }, { unique: true, sparse: true });
+userSchema.index({ 'sellerProfile.isStoreActive': 1 });
+
 // Compound indexes
 userSchema.index({ role: 1, isVerified: 1 });
 userSchema.index({ email: 1, role: 1 });
@@ -237,6 +336,18 @@ userSchema.pre('save', async function (next) {
   }
 });
 
+// Generate store slug before saving
+userSchema.pre('save', function (next) {
+  // Generate store slug if store name is set and slug is empty
+  if (this.sellerProfile && this.sellerProfile.storeName && !this.sellerProfile.storeSlug) {
+    this.sellerProfile.storeSlug = this.sellerProfile.storeName
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+  }
+  next();
+});
+
 // ============================================
 // INSTANCE METHODS
 // ============================================
@@ -246,6 +357,28 @@ userSchema.pre('save', async function (next) {
  */
 userSchema.methods.comparePassword = async function (candidatePassword) {
   return await bcrypt.compare(candidatePassword, this.password);
+};
+
+/**
+ * Generate JWT Access Token
+ */
+userSchema.methods.getJWTToken = function () {
+  return jwt.sign(
+    { id: this._id, role: this.role },
+    process.env.JWT_SECRET,
+    { expiresIn: process.env.JWT_EXPIRE || '7d' }
+  );
+};
+
+/**
+ * Generate Refresh Token
+ */
+userSchema.methods.getRefreshToken = function () {
+  return jwt.sign(
+    { id: this._id },
+    process.env.JWT_REFRESH_SECRET,
+    { expiresIn: '30d' }
+  );
 };
 
 /**
@@ -308,6 +441,32 @@ userSchema.methods.hasAddress = function () {
   return this.addresses && this.addresses.length > 0;
 };
 
+/**
+ * Generate password reset token
+ */
+userSchema.methods.getResetPasswordToken = function () {
+  const resetToken = crypto.randomBytes(32).toString('hex');
+  this.resetPasswordToken = crypto
+    .createHash('sha256')
+    .update(resetToken)
+    .digest('hex');
+  this.resetPasswordExpire = Date.now() + 15 * 60 * 1000;
+  return resetToken;
+};
+
+/**
+ * Generate email verification token
+ */
+userSchema.methods.getVerificationToken = function () {
+  const verifyToken = crypto.randomBytes(32).toString('hex');
+  this.verificationToken = crypto
+    .createHash('sha256')
+    .update(verifyToken)
+    .digest('hex');
+  this.verificationTokenExpire = Date.now() + 24 * 60 * 60 * 1000;
+  return verifyToken;
+};
+
 // ============================================
 // STATIC METHODS
 // ============================================
@@ -357,6 +516,44 @@ userSchema.statics.getStats = async function () {
     adminUsers: 0,
     sellerUsers: 0
   };
+};
+
+/**
+ * Get seller statistics (NEW - Phase 5)
+ */
+userSchema.statics.getSellerStats = async function () {
+  const stats = await this.aggregate([
+    { $match: { role: 'seller', 'sellerProfile.isStoreActive': true } },
+    {
+      $group: {
+        _id: null,
+        totalSellers: { $sum: 1 },
+        totalSales: { $sum: '$sellerProfile.totalSales' },
+        totalProducts: { $sum: '$sellerProfile.totalProducts' },
+        avgRating: { $avg: '$sellerProfile.rating' }
+      }
+    }
+  ]);
+
+  return stats[0] || {
+    totalSellers: 0,
+    totalSales: 0,
+    totalProducts: 0,
+    avgRating: 0
+  };
+};
+
+/**
+ * Get top sellers (NEW - Phase 5)
+ */
+userSchema.statics.getTopSellers = async function (limit = 10) {
+  return await this.find({
+    role: 'seller',
+    'sellerProfile.isStoreActive': true
+  })
+    .sort({ 'sellerProfile.totalSales': -1 })
+    .limit(limit)
+    .select('name email profileImage sellerProfile');
 };
 
 // ============================================

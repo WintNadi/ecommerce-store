@@ -3,6 +3,12 @@ import Product from '../models/Product.js';
 import Order from '../models/Order.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { AppError } from '../middleware/errorHandler.js';
+import { 
+  sendReviewApproved, 
+  sendReviewRejected, 
+  sendAdminResponseToReview,
+  sendNewReviewToAdmin
+} from '../utils/email.js';
 
 // ============================================
 // CREATE REVIEW
@@ -62,12 +68,28 @@ export const createReview = asyncHandler(async (req, res) => {
     comment,
     isVerifiedPurchase: !!hasPurchased,
     isApproved: req.user.role === 'admin' || !!hasPurchased,
+    status: req.user.role === 'admin' || !!hasPurchased ? 'approved' : 'pending',
     ipAddress: req.ip,
     userAgent: req.headers['user-agent']
   });
 
+  // Populate review for email
+  const populatedReview = await Review.findById(review._id)
+    .populate('user', 'name email')
+    .populate('product', 'name');
+
   // Update product rating
   await updateProductRating(productId);
+
+  // ✅ Send email notification to admin (for moderation)
+  if (populatedReview.status === 'pending') {
+    try {
+      await sendNewReviewToAdmin(populatedReview);
+    } catch (error) {
+      console.error('❌ Email sending failed:', error);
+      // Don't block the review creation
+    }
+  }
 
   res.status(201).json({
     success: true,
@@ -423,16 +445,32 @@ export const getAllReviews = asyncHandler(async (req, res) => {
 export const approveReview = asyncHandler(async (req, res) => {
   const { id } = req.params;
 
-  const review = await Review.findById(id);
+  const review = await Review.findById(id)
+    .populate('user', 'name email')
+    .populate('product', 'name');
 
   if (!review) {
     throw new AppError('Review not found', 404);
   }
 
+  // Store old status for tracking
+  const oldStatus = review.status;
+
+  // Approve review
   await review.approve();
 
   // Update product rating
   await updateProductRating(review.product);
+
+  // ✅ Send email notification to user
+  if (oldStatus === 'pending') {
+    try {
+      await sendReviewApproved(review);
+    } catch (error) {
+      console.error('❌ Email sending failed:', error);
+      // Don't block the approval
+    }
+  }
 
   res.status(200).json({
     success: true,
@@ -454,16 +492,32 @@ export const rejectReview = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { reason } = req.body;
 
-  const review = await Review.findById(id);
+  const review = await Review.findById(id)
+    .populate('user', 'name email')
+    .populate('product', 'name');
 
   if (!review) {
     throw new AppError('Review not found', 404);
   }
 
+  // Store old status for tracking
+  const oldStatus = review.status;
+
+  // Reject review
   await review.reject(reason);
 
   // Update product rating
   await updateProductRating(review.product);
+
+  // ✅ Send email notification to user
+  if (oldStatus === 'pending') {
+    try {
+      await sendReviewRejected(review, reason || 'Does not meet our guidelines');
+    } catch (error) {
+      console.error('❌ Email sending failed:', error);
+      // Don't block the rejection
+    }
+  }
 
   res.status(200).json({
     success: true,
@@ -489,13 +543,23 @@ export const addAdminResponse = asyncHandler(async (req, res) => {
     throw new AppError('Response must be at least 5 characters', 400);
   }
 
-  const review = await Review.findById(id);
+  const review = await Review.findById(id)
+    .populate('user', 'name email')
+    .populate('product', 'name');
 
   if (!review) {
     throw new AppError('Review not found', 404);
   }
 
   await review.addAdminResponse(comment, req.user._id);
+
+  // ✅ Send email notification to user
+  try {
+    await sendAdminResponseToReview(review);
+  } catch (error) {
+    console.error('❌ Email sending failed:', error);
+    // Don't block the response
+  }
 
   res.status(200).json({
     success: true,
@@ -505,7 +569,7 @@ export const addAdminResponse = asyncHandler(async (req, res) => {
 });
 
 // ============================================
-// GET REVIEW STATISTICS
+// ADMIN: GET REVIEW STATISTICS
 // ============================================
 
 /**
@@ -519,6 +583,94 @@ export const getReviewStats = asyncHandler(async (req, res) => {
   res.status(200).json({
     success: true,
     data: stats
+  });
+});
+
+// ============================================
+// ADMIN: BULK APPROVE REVIEWS
+// ============================================
+
+/**
+ * @desc    Bulk approve reviews (Admin only)
+ * @route   PUT /api/reviews/bulk/approve
+ * @access  Private (Admin)
+ */
+export const bulkApproveReviews = asyncHandler(async (req, res) => {
+  const { reviewIds } = req.body;
+
+  if (!reviewIds || reviewIds.length === 0) {
+    throw new AppError('Please provide review IDs', 400);
+  }
+
+  const results = [];
+  for (const id of reviewIds) {
+    const review = await Review.findById(id)
+      .populate('user', 'name email')
+      .populate('product', 'name');
+
+    if (!review || review.status !== 'pending') continue;
+
+    await review.approve();
+    await updateProductRating(review.product);
+
+    // Send email
+    try {
+      await sendReviewApproved(review);
+    } catch (error) {
+      console.error('❌ Email sending failed for review:', review._id);
+    }
+
+    results.push({ id: review._id, status: 'approved' });
+  }
+
+  res.status(200).json({
+    success: true,
+    message: `Approved ${results.length} reviews`,
+    data: results
+  });
+});
+
+// ============================================
+// ADMIN: BULK REJECT REVIEWS
+// ============================================
+
+/**
+ * @desc    Bulk reject reviews (Admin only)
+ * @route   PUT /api/reviews/bulk/reject
+ * @access  Private (Admin)
+ */
+export const bulkRejectReviews = asyncHandler(async (req, res) => {
+  const { reviewIds, reason } = req.body;
+
+  if (!reviewIds || reviewIds.length === 0) {
+    throw new AppError('Please provide review IDs', 400);
+  }
+
+  const results = [];
+  for (const id of reviewIds) {
+    const review = await Review.findById(id)
+      .populate('user', 'name email')
+      .populate('product', 'name');
+
+    if (!review || review.status !== 'pending') continue;
+
+    await review.reject(reason || 'Does not meet our guidelines');
+    await updateProductRating(review.product);
+
+    // Send email
+    try {
+      await sendReviewRejected(review, reason || 'Does not meet our guidelines');
+    } catch (error) {
+      console.error('❌ Email sending failed for review:', review._id);
+    }
+
+    results.push({ id: review._id, status: 'rejected' });
+  }
+
+  res.status(200).json({
+    success: true,
+    message: `Rejected ${results.length} reviews`,
+    data: results
   });
 });
 
@@ -538,4 +690,26 @@ const updateProductRating = async (productId) => {
     product.numReviews = stats.totalReviews;
     await product.save({ validateBeforeSave: false });
   }
+};
+
+// ============================================
+// EXPORT
+// ============================================
+
+export default {
+  createReview,
+  getProductReviews,
+  getMyReviews,
+  getReview,
+  updateReview,
+  deleteReview,
+  markHelpful,
+  markUnhelpful,
+  getAllReviews,
+  approveReview,
+  rejectReview,
+  addAdminResponse,
+  getReviewStats,
+  bulkApproveReviews,
+  bulkRejectReviews
 };

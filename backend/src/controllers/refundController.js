@@ -1,7 +1,14 @@
 import Refund from '../models/Refund.js';
 import Order from '../models/Order.js';
+import User from '../models/User.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { AppError } from '../middleware/errorHandler.js';
+import { 
+  sendRefundRequestConfirmation, 
+  sendRefundApproved, 
+  sendRefundRejected,
+  sendNewRefundToAdmin
+} from '../utils/email.js';
 
 // ============================================
 // USER: CREATE REFUND REQUEST
@@ -16,13 +23,13 @@ export const createRefund = asyncHandler(async (req, res) => {
   const { orderId, reason, description, items, totalAmount } = req.body;
 
   // Validate order
-  const order = await Order.findById(orderId);
+  const order = await Order.findById(orderId).populate('user', 'name email');
   if (!order) {
     throw new AppError('Order not found', 404);
   }
 
   // Check if user owns this order
-  if (order.user.toString() !== req.user._id.toString()) {
+  if (order.user._id.toString() !== req.user._id.toString()) {
     throw new AppError('You are not authorized to request refund for this order', 403);
   }
 
@@ -58,6 +65,23 @@ export const createRefund = asyncHandler(async (req, res) => {
       note: 'Refund request submitted'
     }]
   });
+
+  // Populate refund for email
+  const populatedRefund = await Refund.findById(refund._id)
+    .populate('user', 'name email')
+    .populate('order', 'orderNumber totalPrice');
+
+  // ✅ Send email notifications (fire and forget - don't block)
+  try {
+    // Send confirmation to customer
+    await sendRefundRequestConfirmation(populatedRefund);
+    
+    // Send notification to admin
+    await sendNewRefundToAdmin(populatedRefund);
+  } catch (error) {
+    console.error('❌ Email sending failed:', error);
+    // Don't block the refund creation
+  }
 
   res.status(201).json({
     success: true,
@@ -195,6 +219,7 @@ export const getAllRefunds = asyncHandler(async (req, res) => {
 
   // Get stats
   const stats = await Refund.aggregate([
+    { $match: filter },
     { $group: { _id: '$status', count: { $sum: 1 } } }
   ]);
 
@@ -206,7 +231,7 @@ export const getAllRefunds = asyncHandler(async (req, res) => {
   });
 
   const totalAmount = await Refund.aggregate([
-    { $match: { status: 'approved' } },
+    { $match: { status: { $in: ['approved', 'completed'] } } },
     { $group: { _id: null, total: { $sum: '$totalAmount' } } }
   ]);
 
@@ -215,7 +240,7 @@ export const getAllRefunds = asyncHandler(async (req, res) => {
     data: refunds,
     stats: {
       ...statusStats,
-      totalRefunds: await Refund.countDocuments(),
+      totalRefunds: await Refund.countDocuments(filter),
       totalRefundAmount: totalAmount[0]?.total || 0
     },
     pagination: {
@@ -240,7 +265,10 @@ export const approveRefund = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { adminNotes, paymentRefundId } = req.body;
 
-  const refund = await Refund.findById(id);
+  const refund = await Refund.findById(id)
+    .populate('user', 'name email')
+    .populate('order', 'orderNumber totalPrice');
+
   if (!refund) {
     throw new AppError('Refund not found', 404);
   }
@@ -248,6 +276,9 @@ export const approveRefund = asyncHandler(async (req, res) => {
   if (refund.status !== 'pending') {
     throw new AppError('Refund request is not pending', 400);
   }
+
+  // Store old status for tracking
+  const oldStatus = refund.status;
 
   refund.status = 'approved';
   refund.approvedBy = req.user._id;
@@ -262,6 +293,13 @@ export const approveRefund = asyncHandler(async (req, res) => {
   });
 
   await refund.save();
+
+  // ✅ Send email notification
+  try {
+    await sendRefundApproved(refund);
+  } catch (error) {
+    console.error('❌ Email sending failed:', error);
+  }
 
   res.status(200).json({
     success: true,
@@ -283,7 +321,10 @@ export const rejectRefund = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { rejectionReason, adminNotes } = req.body;
 
-  const refund = await Refund.findById(id);
+  const refund = await Refund.findById(id)
+    .populate('user', 'name email')
+    .populate('order', 'orderNumber totalPrice');
+
   if (!refund) {
     throw new AppError('Refund not found', 404);
   }
@@ -292,12 +333,22 @@ export const rejectRefund = asyncHandler(async (req, res) => {
     throw new AppError('Refund request is not pending', 400);
   }
 
+  // Store old status for tracking
+  const oldStatus = refund.status;
+
   refund.status = 'rejected';
   refund.rejectionReason = rejectionReason || 'Request rejected';
   refund.adminNotes = adminNotes || refund.adminNotes;
   refund.resolvedAt = new Date();
 
   await refund.save();
+
+  // ✅ Send email notification
+  try {
+    await sendRefundRejected(refund);
+  } catch (error) {
+    console.error('❌ Email sending failed:', error);
+  }
 
   res.status(200).json({
     success: true,
@@ -319,7 +370,10 @@ export const completeRefund = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { resolutionNote } = req.body;
 
-  const refund = await Refund.findById(id);
+  const refund = await Refund.findById(id)
+    .populate('user', 'name email')
+    .populate('order', 'orderNumber totalPrice');
+
   if (!refund) {
     throw new AppError('Refund not found', 404);
   }
@@ -327,6 +381,9 @@ export const completeRefund = asyncHandler(async (req, res) => {
   if (refund.status !== 'approved') {
     throw new AppError('Only approved refunds can be marked as completed', 400);
   }
+
+  // Store old status for tracking
+  const oldStatus = refund.status;
 
   refund.status = 'completed';
   refund.completedAt = new Date();
@@ -343,7 +400,7 @@ export const completeRefund = asyncHandler(async (req, res) => {
 });
 
 // ============================================
-// GET REFUND STATS
+// ADMIN: GET REFUND STATS
 // ============================================
 
 /**
@@ -358,10 +415,12 @@ export const getRefundStats = asyncHandler(async (req, res) => {
 
   const result = { pending: 0, approved: 0, rejected: 0, completed: 0 };
   stats.forEach(stat => {
-    result[stat._id] = {
-      count: stat.count,
-      amount: stat.total
-    };
+    if (result[stat._id] !== undefined) {
+      result[stat._id] = {
+        count: stat.count,
+        amount: stat.total
+      };
+    }
   });
 
   const totalRefunds = await Refund.countDocuments();
@@ -379,3 +438,132 @@ export const getRefundStats = asyncHandler(async (req, res) => {
     }
   });
 });
+
+// ============================================
+// USER: GET REFUND BY ORDER
+// ============================================
+
+/**
+ * @desc    Get refund by order ID
+ * @route   GET /api/refunds/order/:orderId
+ * @access  Private
+ */
+export const getRefundByOrder = asyncHandler(async (req, res) => {
+  const { orderId } = req.params;
+
+  const refund = await Refund.findOne({ order: orderId })
+    .populate('order', 'orderNumber createdAt totalPrice')
+    .populate('user', 'name email')
+    .populate('items.product', 'name images')
+    .populate('approvedBy', 'name email');
+
+  if (!refund) {
+    return res.status(200).json({
+      success: true,
+      data: null,
+      message: 'No refund found for this order'
+    });
+  }
+
+  // Check if user is authorized
+  if (refund.user._id.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+    throw new AppError('You are not authorized to view this refund', 403);
+  }
+
+  res.status(200).json({
+    success: true,
+    data: refund
+  });
+});
+
+// ============================================
+// ADMIN: BULK UPDATE STATUS
+// ============================================
+
+/**
+ * @desc    Bulk update refund status (Admin only)
+ * @route   PUT /api/refunds/bulk
+ * @access  Private (Admin)
+ */
+export const bulkUpdateRefundStatus = asyncHandler(async (req, res) => {
+  const { refundIds, status, adminNotes } = req.body;
+
+  if (!refundIds || refundIds.length === 0) {
+    throw new AppError('Please provide refund IDs', 400);
+  }
+
+  if (!status || !['approved', 'rejected', 'completed'].includes(status)) {
+    throw new AppError('Invalid status', 400);
+  }
+
+  const results = [];
+  for (const id of refundIds) {
+    const refund = await Refund.findById(id).populate('user', 'name email');
+    if (!refund) continue;
+
+    if (refund.status !== 'pending' && status !== 'completed') continue;
+
+    // Update status
+    const oldStatus = refund.status;
+    refund.status = status;
+    refund.adminNotes = adminNotes || refund.adminNotes;
+
+    if (status === 'approved') {
+      refund.approvedBy = req.user._id;
+      refund.approvedAt = new Date();
+      await Order.findByIdAndUpdate(refund.order, {
+        status: 'refunded',
+        refundedAt: new Date()
+      });
+    }
+
+    if (status === 'rejected') {
+      refund.rejectionReason = adminNotes || 'Request rejected';
+      refund.resolvedAt = new Date();
+    }
+
+    if (status === 'completed') {
+      refund.completedAt = new Date();
+      refund.isResolved = true;
+    }
+
+    await refund.save();
+
+    // Send email notifications
+    try {
+      if (status === 'approved') {
+        await sendRefundApproved(refund);
+      }
+      if (status === 'rejected') {
+        await sendRefundRejected(refund);
+      }
+    } catch (error) {
+      console.error('❌ Email sending failed for refund:', refund._id);
+    }
+
+    results.push({ id: refund._id, status });
+  }
+
+  res.status(200).json({
+    success: true,
+    message: `Updated ${results.length} refunds`,
+    data: results
+  });
+});
+
+// ============================================
+// EXPORT
+// ============================================
+
+export default {
+  createRefund,
+  getMyRefunds,
+  getRefund,
+  getAllRefunds,
+  approveRefund,
+  rejectRefund,
+  completeRefund,
+  getRefundStats,
+  getRefundByOrder,
+  bulkUpdateRefundStatus
+};

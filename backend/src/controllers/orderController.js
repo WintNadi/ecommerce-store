@@ -1,14 +1,18 @@
 import Order from '../models/Order.js';
 import Product from '../models/Product.js';
-import Cart from '../models/Cart.js';
-import Coupon from '../models/Coupon.js';
 import User from '../models/User.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { AppError } from '../middleware/errorHandler.js';
-import mongoose from 'mongoose';
+import { 
+  sendOrderConfirmation, 
+  sendOrderStatusUpdate, 
+  sendOrderShipped, 
+  sendOrderDelivered,
+  sendNewOrderToSeller
+} from '../utils/email.js';
 
 // ============================================
-// CREATE ORDER
+// USER: CREATE ORDER
 // ============================================
 
 /**
@@ -18,197 +22,125 @@ import mongoose from 'mongoose';
  */
 export const createOrder = asyncHandler(async (req, res) => {
   const {
+    orderItems,
     shippingAddress,
     paymentMethod,
-    shippingMethod,
-    notes,
-    couponCode
+    taxPrice = 0,
+    shippingPrice = 0,
+    totalPrice
   } = req.body;
 
-  // ✅ Get user's cart
-  const cart = await Cart.findOne({ user: req.user._id });
-
-  if (!cart || cart.items.length === 0) {
-    throw new AppError('Your cart is empty. Please add items to your cart.', 400);
+  // Validate order items
+  if (!orderItems || orderItems.length === 0) {
+    throw new AppError('No order items', 400);
   }
 
-  // ✅ Check stock availability
-  for (const item of cart.items) {
+  // Validate shipping address
+  if (!shippingAddress || !shippingAddress.city) {
+    throw new AppError('Please provide a shipping address', 400);
+  }
+
+  // Process order items and check stock
+  const processedItems = [];
+  let totalAmount = 0;
+
+  for (const item of orderItems) {
     const product = await Product.findById(item.product);
     if (!product) {
-      throw new AppError(`Product "${item.name}" not found`, 404);
+      throw new AppError(`Product ${item.product} not found`, 404);
     }
+
+    // Check stock
     if (product.stock < item.quantity) {
-      throw new AppError(`Not enough stock for "${item.name}". Available: ${product.stock}`, 400);
+      throw new AppError(`Insufficient stock for ${product.name}. Available: ${product.stock}`, 400);
     }
+
+    // Update stock
+    product.stock -= item.quantity;
+    await product.save({ validateBeforeSave: false });
+
+    processedItems.push({
+      product: product._id,
+      name: product.name,
+      price: item.price || product.price,
+      quantity: item.quantity,
+      image: product.images?.[0]?.url || ''
+    });
+
+    totalAmount += (item.price || product.price) * item.quantity;
   }
 
-  // ✅ Calculate totals
-  const subtotal = cart.subtotal;
-  const taxPrice = cart.taxAmount || 0;
-  const shippingPrice = cart.shippingAmount || 0;
-  const discountAmount = cart.discountAmount || 0;
-  const couponDiscount = cart.couponDiscount || 0;
+  // Get seller ID from first product
+  const firstProduct = await Product.findById(orderItems[0].product).populate('seller');
+  const sellerId = firstProduct?.seller?._id;
 
-  // ✅ Ensure total is not negative
-  let totalPrice = subtotal + taxPrice + shippingPrice - discountAmount - couponDiscount;
-  totalPrice = Math.max(0, totalPrice);
-
-  // ✅ Create order items
-  const orderItems = cart.items.map(item => ({
-    product: item.product,
-    name: item.name,
-    slug: item.slug,
-    price: item.price,
-    quantity: item.quantity,
-    image: item.image,
-    variation: item.variation,
-    productDiscount: item.productDiscount || 0,
-    couponDiscount: item.couponDiscount || 0,
-    totalPrice: Math.max(0, (item.price * item.quantity) - (item.couponDiscount || 0))
-  }));
-
-  // ✅ Create order
+  // Create order
   const order = await Order.create({
     user: req.user._id,
-    orderItems,
-    shippingAddress: {
-      street: shippingAddress.street,
-      city: shippingAddress.city,
-      state: shippingAddress.state,
-      zipCode: shippingAddress.zipCode,
-      country: shippingAddress.country || 'Myanmar',
-      phone: shippingAddress.phone || req.user.phone
-    },
-    shippingMethod: shippingMethod || 'standard',
-    shippingPrice,
+    orderItems: processedItems,
+    shippingAddress,
     paymentMethod,
-    subtotal,
     taxPrice,
-    discountAmount,
-    couponCode: couponCode || cart.couponCode,
-    couponDiscount,
-    totalPrice,
+    shippingPrice,
+    totalPrice: totalPrice || totalAmount + taxPrice + shippingPrice,
+    sellerId,
     status: 'pending',
-    paymentStatus: 'pending',
-    timeline: [
-      {
-        status: 'created',
-        note: 'Order created successfully',
-        date: new Date()
-      }
-    ]
+    paymentStatus: paymentMethod === 'cod' ? 'pending' : 'pending'
   });
 
-  // ✅ Reduce product stock
-  for (const item of cart.items) {
-    const product = await Product.findById(item.product);
-    await product.reduceStock(item.quantity);
-  }
+  // Populate order for response
+  const populatedOrder = await Order.findById(order._id)
+    .populate('user', 'name email')
+    .populate('orderItems.product', 'name price images');
 
-  // ✅ Record coupon usage if coupon was applied
-  if (cart.couponCode && cart.couponId) {
-    try {
-      const coupon = await Coupon.findById(cart.couponId);
-      if (coupon) {
-        await coupon.recordUsage(req.user._id, order._id, cart.couponDiscount);
+  // ✅ Send email notifications (fire and forget - don't block)
+  try {
+    // Send confirmation to customer
+    await sendOrderConfirmation(populatedOrder);
+    
+    // Send notification to seller (if applicable)
+    if (sellerId) {
+      const seller = await User.findById(sellerId);
+      if (seller && seller.email) {
+        await sendNewOrderToSeller(populatedOrder, seller);
       }
-    } catch (error) {
-      console.error('Failed to record coupon usage:', error);
     }
-  }
-
-  // ✅ Clear cart
-  await cart.clearCart();
-
-  // ✅ Populate order details
-  await order.populate('user', 'name email');
-  await order.populate('orderItems.product', 'name price images');
-
-  // ✅ Emit socket event for real-time tracking
-  const io = req.app.get('io');
-  if (io) {
-    io.to(`user_${req.user._id}`).emit('order_created', {
-      orderId: order._id,
-      orderNumber: order.orderNumber,
-      status: order.status
-    });
+  } catch (error) {
+    console.error('❌ Email sending failed:', error);
+    // Don't block the order creation
   }
 
   res.status(201).json({
     success: true,
     message: 'Order created successfully',
-    data: order
+    data: populatedOrder
   });
 });
 
 // ============================================
-// GET ALL ORDERS (Admin)
+// USER: GET MY ORDERS
 // ============================================
 
 /**
- * @desc    Get all orders with filters
- * @route   GET /api/orders
- * @access  Private (Admin only)
+ * @desc    Get current user's orders
+ * @route   GET /api/orders/my-orders
+ * @access  Private
  */
-export const getOrders = asyncHandler(async (req, res) => {
-  const {
-    page = 1,
-    limit = 20,
-    sort = '-createdAt',
-    status,
-    paymentStatus,
-    startDate,
-    endDate,
-    search
-  } = req.query;
+export const getMyOrders = asyncHandler(async (req, res) => {
+  const { page = 1, limit = 10, status = 'all' } = req.query;
 
-  // Build filter
-  const filter = {};
-
-  if (status) {
+  const filter = { user: req.user._id };
+  if (status !== 'all') {
     filter.status = status;
   }
 
-  if (paymentStatus) {
-    filter.paymentStatus = paymentStatus;
-  }
-
-  if (startDate || endDate) {
-    filter.createdAt = {};
-    if (startDate) filter.createdAt.$gte = new Date(startDate);
-    if (endDate) filter.createdAt.$lte = new Date(endDate);
-  }
-
-  if (search) {
-    filter.$or = [
-      { orderNumber: { $regex: search, $options: 'i' } },
-      { 'shippingAddress.phone': { $regex: search, $options: 'i' } }
-    ];
-  }
-
-  // Pagination
   const skip = (parseInt(page) - 1) * parseInt(limit);
 
-  // Build sort
-  let sortQuery = {};
-  if (sort.startsWith('-')) {
-    sortQuery[sort.substring(1)] = -1;
-  } else {
-    sortQuery[sort] = 1;
-  }
-
   const orders = await Order.find(filter)
-    .sort(sortQuery)
+    .populate('orderItems.product', 'name price images')
+    .sort({ createdAt: -1 })
     .skip(skip)
-    .limit(parseInt(limit))
-    .populate('user', 'name email')
-    .populate({
-      path: 'orderItems.product',
-      select: 'name slug price images',
-      options: { lean: true }
-    })
-    .lean();
+    .limit(parseInt(limit));
 
   const total = await Order.countDocuments(filter);
 
@@ -225,47 +157,134 @@ export const getOrders = asyncHandler(async (req, res) => {
 });
 
 // ============================================
-// GET USER ORDERS
+// USER: GET SINGLE ORDER
 // ============================================
 
 /**
- * @desc    Get current user's orders
- * @route   GET /api/orders/my-orders
+ * @desc    Get order by ID
+ * @route   GET /api/orders/:id
  * @access  Private
  */
-export const getMyOrders = asyncHandler(async (req, res) => {
-  const { page = 1, limit = 10, status } = req.query;
+export const getOrder = asyncHandler(async (req, res) => {
+  const { id } = req.params;
 
-  const query = { user: req.user._id };
-  if (status) query.status = status;
+  const order = await Order.findById(id)
+    .populate('user', 'name email phone')
+    .populate('orderItems.product', 'name price images')
+    .populate('sellerId', 'name email sellerProfile');
 
-  const skip = (parseInt(page) - 1) * parseInt(limit);
+  if (!order) {
+    throw new AppError('Order not found', 404);
+  }
 
-  const orders = await Order.find(query)
-    .sort({ createdAt: -1 })
-    .skip(skip)
-    .limit(parseInt(limit))
-    .populate({
-      path: 'orderItems.product',
-      select: 'name slug price images',
-      options: { lean: true }
-    })
-    .lean();
+  // Check if user is authorized (owner, seller, or admin)
+  const isOwner = order.user._id.toString() === req.user._id.toString();
+  const isSeller = order.sellerId && order.sellerId._id.toString() === req.user._id.toString();
+  const isAdmin = req.user.role === 'admin';
 
-  const total = await Order.countDocuments(query);
-
-  // Format orders for frontend
-  const formattedOrders = orders.map(order => ({
-    ...order,
-    orderItems: order.orderItems.map(item => ({
-      ...item,
-      product: item.product || null
-    }))
-  }));
+  if (!isOwner && !isSeller && !isAdmin) {
+    throw new AppError('Not authorized to view this order', 403);
+  }
 
   res.status(200).json({
     success: true,
-    data: formattedOrders,
+    data: order
+  });
+});
+
+// ============================================
+// ADMIN/SELLER: GET ALL ORDERS
+// ============================================
+
+/**
+ * @desc    Get all orders (Admin/Seller)
+ * @route   GET /api/orders
+ * @access  Private (Admin/Seller)
+ */
+export const getAllOrders = asyncHandler(async (req, res) => {
+  const {
+    page = 1,
+    limit = 20,
+    status = 'all',
+    search = '',
+    sort = '-createdAt',
+    fromDate,
+    toDate
+  } = req.query;
+
+  // Build filter
+  const filter = {};
+
+  // Sellers can only see their own orders
+  if (req.user.role === 'seller') {
+    filter.sellerId = req.user._id;
+  }
+
+  if (status !== 'all') {
+    filter.status = status;
+  }
+
+  if (search) {
+    filter.$or = [
+      { orderNumber: { $regex: search, $options: 'i' } },
+      { 'user.name': { $regex: search, $options: 'i' } },
+      { 'user.email': { $regex: search, $options: 'i' } }
+    ];
+  }
+
+  if (fromDate || toDate) {
+    filter.createdAt = {};
+    if (fromDate) filter.createdAt.$gte = new Date(fromDate);
+    if (toDate) filter.createdAt.$lte = new Date(toDate);
+  }
+
+  const skip = (parseInt(page) - 1) * parseInt(limit);
+
+  // Build sort
+  const sortQuery = {};
+  if (sort.startsWith('-')) {
+    sortQuery[sort.substring(1)] = -1;
+  } else {
+    sortQuery[sort] = 1;
+  }
+
+  const orders = await Order.find(filter)
+    .populate('user', 'name email phone')
+    .populate('orderItems.product', 'name price images')
+    .populate('sellerId', 'name email sellerProfile')
+    .sort(sortQuery)
+    .skip(skip)
+    .limit(parseInt(limit));
+
+  const total = await Order.countDocuments(filter);
+
+  // Get order status stats
+  const statusStats = await Order.aggregate([
+    { $match: filter },
+    { $group: { _id: '$status', count: { $sum: 1 } } }
+  ]);
+
+  const stats = { pending: 0, processing: 0, shipped: 0, delivered: 0, cancelled: 0 };
+  statusStats.forEach(stat => {
+    if (stats[stat._id] !== undefined) {
+      stats[stat._id] = stat.count;
+    }
+  });
+
+  // Get total revenue
+  const revenue = await Order.aggregate([
+    { $match: { ...filter, status: { $in: ['delivered', 'shipped'] } } },
+    { $group: { _id: null, total: { $sum: '$totalPrice' } } }
+  ]);
+
+  res.status(200).json({
+    success: true,
+    data: orders,
+    stats: {
+      ...stats,
+      totalOrders: await Order.countDocuments(filter),
+      totalRevenue: revenue[0]?.total || 0
+    },
     pagination: {
       page: parseInt(page),
       limit: parseInt(limit),
@@ -276,44 +295,7 @@ export const getMyOrders = asyncHandler(async (req, res) => {
 });
 
 // ============================================
-// GET SINGLE ORDER
-// ============================================
-
-/**
- * @desc    Get single order by ID
- * @route   GET /api/orders/:id
- * @access  Private
- */
-export const getOrder = asyncHandler(async (req, res) => {
-  const { id } = req.params;
-
-  const order = await Order.findById(id)
-    .populate('user', 'name email phone')
-    .populate({
-      path: 'orderItems.product',
-      select: 'name slug price images',
-      options: { lean: true }
-    })
-    .populate('cancelledBy', 'name email')
-    .lean();
-
-  if (!order) {
-    throw new AppError('Order not found', 404);
-  }
-
-  // Check if user is authorized to view this order
-  if (req.user.role !== 'admin' && order.user._id.toString() !== req.user._id.toString()) {
-    throw new AppError('You are not authorized to view this order', 403);
-  }
-
-  res.status(200).json({
-    success: true,
-    data: order
-  });
-});
-
-// ============================================
-// UPDATE ORDER STATUS
+// ADMIN: UPDATE ORDER STATUS
 // ============================================
 
 /**
@@ -323,50 +305,95 @@ export const getOrder = asyncHandler(async (req, res) => {
  */
 export const updateOrderStatus = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const { status, note } = req.body;
+  const { status, trackingNumber, notes } = req.body;
 
-  const order = await Order.findById(id);
+  const order = await Order.findById(id)
+    .populate('user', 'name email');
 
   if (!order) {
     throw new AppError('Order not found', 404);
   }
 
-  // Update status
-  await order.updateStatus(status, note, req.user._id);
+  // Check if seller owns this order
+  if (req.user.role === 'seller') {
+    const isSeller = order.sellerId && order.sellerId.toString() === req.user._id.toString();
+    if (!isSeller) {
+      throw new AppError('You are not authorized to update this order', 403);
+    }
+  }
 
-  // If status is cancelled, restore stock
-  if (status === 'cancelled' && order.status !== 'cancelled') {
+  // Store old status for email
+  const oldStatus = order.status;
+
+  // Validate status transition
+  const validTransitions = {
+    'pending': ['processing', 'cancelled'],
+    'processing': ['confirmed', 'cancelled'],
+    'confirmed': ['shipped', 'cancelled'],
+    'shipped': ['delivered', 'cancelled'],
+    'delivered': [],  // Terminal state - no further transitions
+    'cancelled': []   // Terminal state - no further transitions
+  };
+
+  if (!validTransitions[oldStatus].includes(status)) {
+    throw new AppError(
+      `Cannot transition from ${oldStatus} to ${status}. ` +
+      `Valid transitions: ${validTransitions[oldStatus].join(', ')}`,
+      400
+    );
+  }
+
+  // Update status
+  order.status = status;
+  order.updatedAt = new Date();
+
+  // Add tracking number if provided
+  if (trackingNumber) {
+    order.trackingNumber = trackingNumber;
+  }
+
+  // Add to status history
+  order.statusHistory = order.statusHistory || [];
+  order.statusHistory.push({
+    status: status,
+    updatedBy: req.user._id,
+    note: notes || `Status changed to ${status}`,
+    updatedAt: new Date()
+  });
+
+  // Set special timestamps
+  if (status === 'shipped') {
+    order.shippedAt = new Date();
+  }
+  if (status === 'delivered') {
+    order.deliveredAt = new Date();
+  }
+  if (status === 'cancelled') {
+    order.cancelledAt = new Date();
+    // Restore stock if order is cancelled
     for (const item of order.orderItems) {
       const product = await Product.findById(item.product);
       if (product) {
-        await product.increaseStock(item.quantity);
+        product.stock += item.quantity;
+        await product.save({ validateBeforeSave: false });
       }
     }
-    order.cancelledAt = new Date();
-    order.cancelledBy = req.user._id;
-  }
-
-  // If status is delivered
-  if (status === 'delivered') {
-    order.isDelivered = true;
-    order.deliveredAt = new Date();
   }
 
   await order.save();
 
-  // Emit socket event
-  const io = req.app.get('io');
-  if (io) {
-    io.to(`user_${order.user}`).emit('order_status_updated', {
-      orderId: order._id,
-      orderNumber: order.orderNumber,
-      status: order.status
-    });
-    io.to(`order_${order._id}`).emit('order_tracking_update', {
-      orderId: order._id,
-      status: order.status,
-      timestamp: new Date()
-    });
+  // ✅ Send email notifications (fire and forget)
+  try {
+    await sendOrderStatusUpdate(order, oldStatus, status);
+    
+    if (status === 'shipped') {
+      await sendOrderShipped(order);
+    }
+    if (status === 'delivered') {
+      await sendOrderDelivered(order);
+    }
+  } catch (error) {
+    console.error('❌ Email sending failed:', error);
   }
 
   res.status(200).json({
@@ -377,202 +404,29 @@ export const updateOrderStatus = asyncHandler(async (req, res) => {
 });
 
 // ============================================
-// ADD TRACKING INFORMATION
+// ADMIN: UPDATE PAYMENT STATUS
 // ============================================
 
 /**
- * @desc    Add tracking information to order
- * @route   POST /api/orders/:id/tracking
- * @access  Private (Admin/Seller)
- */
-export const addTrackingInfo = asyncHandler(async (req, res) => {
-  const { id } = req.params;
-  const { trackingNumber, trackingProvider, trackingUrl, status, location, description } = req.body;
-
-  const order = await Order.findById(id);
-
-  if (!order) {
-    throw new AppError('Order not found', 404);
-  }
-
-  // Update tracking info
-  if (trackingNumber) order.trackingNumber = trackingNumber;
-  if (trackingProvider) order.trackingProvider = trackingProvider;
-  if (trackingUrl) order.trackingUrl = trackingUrl;
-
-  // Add tracking history
-  if (status) {
-    await order.addTrackingUpdate(status, location, description);
-  }
-
-  await order.save();
-
-  // Emit socket event for real-time tracking
-  const io = req.app.get('io');
-  if (io) {
-    io.to(`order_${order._id}`).emit('tracking_updated', {
-      orderId: order._id,
-      tracking: order.trackingHistory,
-      lastUpdate: order.trackingLastUpdate
-    });
-  }
-
-  res.status(200).json({
-    success: true,
-    message: 'Tracking information added successfully',
-    data: order
-  });
-});
-
-// ============================================
-// CANCEL ORDER
-// ============================================
-
-/**
- * @desc    Cancel order
- * @route   PUT /api/orders/:id/cancel
- * @access  Private (User/Admin)
- */
-export const cancelOrder = asyncHandler(async (req, res) => {
-  const { id } = req.params;
-  const { reason } = req.body;
-
-  const order = await Order.findById(id);
-
-  if (!order) {
-    throw new AppError('Order not found', 404);
-  }
-
-  // Check if user can cancel
-  if (req.user.role === 'user' && order.user.toString() !== req.user._id.toString()) {
-    throw new AppError('You are not authorized to cancel this order', 403);
-  }
-
-  if (!order.canCancel) {
-    throw new AppError(`Cannot cancel order in "${order.status}" status`, 400);
-  }
-
-  // Update status
-  order.status = 'cancelled';
-  order.cancellationReason = reason || 'Customer requested cancellation';
-  order.cancelledAt = new Date();
-  order.cancelledBy = req.user._id;
-
-  // Restore stock
-  for (const item of order.orderItems) {
-    const product = await Product.findById(item.product);
-    if (product) {
-      await product.increaseStock(item.quantity);
-    }
-  }
-
-  // Update timeline
-  order.timeline.push({
-    status: 'cancelled',
-    note: reason || 'Order cancelled by customer',
-    date: new Date()
-  });
-
-  await order.save();
-
-  // Emit socket event
-  const io = req.app.get('io');
-  if (io) {
-    io.to(`user_${order.user}`).emit('order_cancelled', {
-      orderId: order._id,
-      orderNumber: order.orderNumber
-    });
-  }
-
-  res.status(200).json({
-    success: true,
-    message: 'Order cancelled successfully',
-    data: order
-  });
-});
-
-// ============================================
-// GET ORDER TRACKING
-// ============================================
-
-/**
- * @desc    Get order tracking information
- * @route   GET /api/orders/:id/tracking
- * @access  Private
- */
-export const getOrderTracking = asyncHandler(async (req, res) => {
-  const { id } = req.params;
-
-  const order = await Order.findById(id)
-    .select(
-      'orderNumber status trackingNumber trackingProvider trackingUrl trackingHistory trackingLastUpdate shippingAddress estimatedDelivery'
-    )
-    .lean();
-
-  if (!order) {
-    throw new AppError('Order not found', 404);
-  }
-
-  // Check authorization
-  if (req.user.role !== 'admin' && order.user.toString() !== req.user._id.toString()) {
-    throw new AppError('You are not authorized to view this order tracking', 403);
-  }
-
-  res.status(200).json({
-    success: true,
-    data: order
-  });
-});
-
-// ============================================
-// GET ORDER STATISTICS
-// ============================================
-
-/**
- * @desc    Get order statistics
- * @route   GET /api/orders/stats
- * @access  Private (Admin)
- */
-export const getOrderStats = asyncHandler(async (req, res) => {
-  const { startDate, endDate } = req.query;
-
-  const stats = await Order.getStats({
-    startDate: startDate ? new Date(startDate) : undefined,
-    endDate: endDate ? new Date(endDate) : undefined
-  });
-
-  res.status(200).json({
-    success: true,
-    data: stats
-  });
-});
-
-// ============================================
-// UPDATE PAYMENT STATUS
-// ============================================
-
-/**
- * @desc    Update order payment status
+ * @desc    Update payment status
  * @route   PUT /api/orders/:id/payment
  * @access  Private (Admin)
  */
 export const updatePaymentStatus = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const { paymentStatus, paymentResult } = req.body;
+  const { paymentStatus, paymentId } = req.body;
 
   const order = await Order.findById(id);
-
   if (!order) {
     throw new AppError('Order not found', 404);
   }
 
   order.paymentStatus = paymentStatus;
-
+  if (paymentId) {
+    order.paymentId = paymentId;
+  }
   if (paymentStatus === 'paid') {
     order.paidAt = new Date();
-    if (paymentResult) {
-      order.paymentResult = paymentResult;
-    }
   }
 
   await order.save();
@@ -581,6 +435,97 @@ export const updatePaymentStatus = asyncHandler(async (req, res) => {
     success: true,
     message: `Payment status updated to ${paymentStatus}`,
     data: order
+  });
+});
+
+// ============================================
+// ADMIN: DELETE ORDER
+// ============================================
+
+/**
+ * @desc    Delete an order (Admin only)
+ * @route   DELETE /api/orders/:id
+ * @access  Private (Admin)
+ */
+export const deleteOrder = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  const order = await Order.findById(id);
+  if (!order) {
+    throw new AppError('Order not found', 404);
+  }
+
+  // Restore stock if order is not delivered
+  if (order.status !== 'delivered' && order.status !== 'cancelled') {
+    for (const item of order.orderItems) {
+      const product = await Product.findById(item.product);
+      if (product) {
+        product.stock += item.quantity;
+        await product.save({ validateBeforeSave: false });
+      }
+    }
+  }
+
+  await order.deleteOne();
+
+  res.status(200).json({
+    success: true,
+    message: 'Order deleted successfully'
+  });
+});
+
+// ============================================
+// GET ORDER STATS
+// ============================================
+
+/**
+ * @desc    Get order statistics
+ * @route   GET /api/orders/stats
+ * @access  Private (Admin/Seller)
+ */
+export const getOrderStats = asyncHandler(async (req, res) => {
+  const filter = {};
+
+  // Sellers can only see their own orders
+  if (req.user.role === 'seller') {
+    filter.sellerId = req.user._id;
+  }
+
+  const stats = await Order.aggregate([
+    { $match: filter },
+    {
+      $group: {
+        _id: '$status',
+        count: { $sum: 1 },
+        totalAmount: { $sum: '$totalPrice' }
+      }
+    }
+  ]);
+
+  const result = {
+    pendingOrders: 0,
+    processingOrders: 0,
+    shippedOrders: 0,
+    deliveredOrders: 0,
+    cancelledOrders: 0,
+    totalRevenue: 0,
+    totalOrders: 0
+  };
+
+  stats.forEach(stat => {
+    const statusKey = `${stat._id}Orders`;
+    if (statusKey in result) {
+      result[statusKey] = stat.count;
+    }
+    if (stat._id === 'delivered' || stat._id === 'shipped') {
+      result.totalRevenue += stat.totalAmount;
+    }
+    result.totalOrders += stat.count;
+  });
+
+  res.status(200).json({
+    success: true,
+    data: result
   });
 });
 
@@ -596,7 +541,29 @@ export const updatePaymentStatus = asyncHandler(async (req, res) => {
 export const getDailyOrderStats = asyncHandler(async (req, res) => {
   const { days = 7 } = req.query;
 
-  const stats = await Order.getDailyStats(parseInt(days));
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - parseInt(days));
+
+  const stats = await Order.aggregate([
+    {
+      $match: {
+        createdAt: { $gte: startDate },
+        status: { $in: ['delivered', 'shipped'] }
+      }
+    },
+    {
+      $group: {
+        _id: {
+          year: { $year: '$createdAt' },
+          month: { $month: '$createdAt' },
+          day: { $dayOfMonth: '$createdAt' }
+        },
+        orders: { $sum: 1 },
+        revenue: { $sum: '$totalPrice' }
+      }
+    },
+    { $sort: { '_id.year': 1, '_id.month': 1, '_id.day': 1 } }
+  ]);
 
   res.status(200).json({
     success: true,
@@ -605,63 +572,131 @@ export const getDailyOrderStats = asyncHandler(async (req, res) => {
 });
 
 // ============================================
-// EXPORT ORDERS (CSV)
+// CANCEL ORDER (USER)
 // ============================================
 
 /**
- * @desc    Export orders to CSV
- * @route   GET /api/orders/export
- * @access  Private (Admin)
+ * @desc    Cancel an order (User)
+ * @route   PUT /api/orders/:id/cancel
+ * @access  Private
  */
-export const exportOrders = asyncHandler(async (req, res) => {
-  const { startDate, endDate, status } = req.query;
+export const cancelOrder = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { reason } = req.body;
 
-  const filter = {};
-  if (status) filter.status = status;
-  if (startDate || endDate) {
-    filter.createdAt = {};
-    if (startDate) filter.createdAt.$gte = new Date(startDate);
-    if (endDate) filter.createdAt.$lte = new Date(endDate);
+  const order = await Order.findById(id);
+  if (!order) {
+    throw new AppError('Order not found', 404);
   }
+
+  // Check if user owns this order
+  if (order.user.toString() !== req.user._id.toString()) {
+    throw new AppError('You are not authorized to cancel this order', 403);
+  }
+
+  // Only pending or processing orders can be cancelled by user
+  if (order.status !== 'pending' && order.status !== 'processing') {
+    throw new AppError('This order cannot be cancelled at this stage', 400);
+  }
+
+  // Store old status for email
+  const oldStatus = order.status;
+
+  order.status = 'cancelled';
+  order.cancelledAt = new Date();
+  order.statusHistory = order.statusHistory || [];
+  order.statusHistory.push({
+    status: 'cancelled',
+    updatedBy: req.user._id,
+    note: reason || 'Cancelled by customer',
+    updatedAt: new Date()
+  });
+
+  // Restore stock
+  for (const item of order.orderItems) {
+    const product = await Product.findById(item.product);
+    if (product) {
+      product.stock += item.quantity;
+      await product.save({ validateBeforeSave: false });
+    }
+  }
+
+  await order.save();
+
+  // ✅ Send email notification
+  try {
+    await sendOrderStatusUpdate(order, oldStatus, 'cancelled');
+  } catch (error) {
+    console.error('❌ Email sending failed:', error);
+  }
+
+  res.status(200).json({
+    success: true,
+    message: 'Order cancelled successfully',
+    data: order
+  });
+});
+
+// ============================================
+// GET SELLER ORDERS
+// ============================================
+
+/**
+ * @desc    Get orders for a specific seller
+ * @route   GET /api/orders/seller/:sellerId
+ * @access  Private (Admin/Seller)
+ */
+export const getSellerOrders = asyncHandler(async (req, res) => {
+  const { sellerId } = req.params;
+  const { page = 1, limit = 20, status = 'all' } = req.query;
+
+  // Check authorization
+  if (req.user.role !== 'admin' && req.user._id.toString() !== sellerId) {
+    throw new AppError('Not authorized to view these orders', 403);
+  }
+
+  const filter = { sellerId };
+  if (status !== 'all') {
+    filter.status = status;
+  }
+
+  const skip = (parseInt(page) - 1) * parseInt(limit);
 
   const orders = await Order.find(filter)
-    .populate('user', 'name email')
+    .populate('user', 'name email phone')
+    .populate('orderItems.product', 'name price images')
     .sort({ createdAt: -1 })
-    .lean();
+    .skip(skip)
+    .limit(parseInt(limit));
 
-  if (orders.length === 0) {
-    throw new AppError('No orders found to export', 404);
-  }
+  const total = await Order.countDocuments(filter);
 
-  // Format data for CSV
-  const csvData = orders.map(order => ({
-    'Order Number': order.orderNumber,
-    'Customer Name': order.user?.name || 'Guest',
-    'Customer Email': order.user?.email || '',
-    'Total Items': order.orderItems.reduce((sum, item) => sum + item.quantity, 0),
-    'Subtotal': order.subtotal,
-    'Shipping': order.shippingPrice,
-    'Tax': order.taxPrice,
-    'Discount': order.discountAmount + order.couponDiscount,
-    'Total': order.totalPrice,
-    'Status': order.status,
-    'Payment Status': order.paymentStatus,
-    'Payment Method': order.paymentMethod,
-    'Shipping Address': `${order.shippingAddress.street}, ${order.shippingAddress.city}, ${order.shippingAddress.state}, ${order.shippingAddress.zipCode}`,
-    'Created At': order.createdAt.toISOString().split('T')[0],
-    'Order Date': order.createdAt.toLocaleDateString()
-  }));
-
-  // Set response headers for CSV download
-  res.setHeader('Content-Type', 'text/csv');
-  res.setHeader('Content-Disposition', `attachment; filename=orders_${new Date().toISOString().split('T')[0]}.csv`);
-
-  // Write CSV
-  const headers = Object.keys(csvData[0]);
-  const csv = [
-    headers.join(','),
-    ...csvData.map(row => headers.map(h => `"${row[h] || ''}"`).join(','))
-  ].join('\n');
-
-  res.status(200).send(csv);
+  res.status(200).json({
+    success: true,
+    data: orders,
+    pagination: {
+      page: parseInt(page),
+      limit: parseInt(limit),
+      total,
+      pages: Math.ceil(total / parseInt(limit))
+    }
+  });
 });
+
+// ============================================
+// EXPORT
+// ============================================
+
+export default {
+  createOrder,
+  getMyOrders,
+  getOrder,
+  getAllOrders,
+  updateOrderStatus,
+  updatePaymentStatus,
+  deleteOrder,
+  getOrderStats,
+  getDailyOrderStats,
+  cancelOrder,
+  getSellerOrders
+};

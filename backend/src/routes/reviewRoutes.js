@@ -14,7 +14,9 @@ import {
   approveReview,
   rejectReview,
   addAdminResponse,
-  getReviewStats
+  getReviewStats,
+  bulkApproveReviews,
+  bulkRejectReviews
 } from '../controllers/reviewController.js';
 import { protect, authorize } from '../middleware/auth.js';
 
@@ -57,6 +59,7 @@ router.get('/:id', getReview);
  * @logic   - Checks if user already reviewed product
  *           - Checks if user purchased product (verified purchase)
  *           - Auto-approves if admin or verified purchase
+ *           - Sends email notification to admin (if pending)
  */
 router.post('/', protect, createReview);
 
@@ -136,6 +139,7 @@ router.get('/stats', protect, authorize('admin'), getReviewStats);
  * @access  Private (Admin only)
  * @logic   - Updates review status to 'approved'
  *           - Recalculates product rating
+ *           - Sends email notification to user
  */
 router.put('/:id/approve', protect, authorize('admin'), approveReview);
 
@@ -146,6 +150,7 @@ router.put('/:id/approve', protect, authorize('admin'), approveReview);
  * @body    {string} reason - Reason for rejection (optional)
  * @logic   - Updates review status to 'rejected'
  *           - Recalculates product rating
+ *           - Sends email notification to user
  */
 router.put('/:id/reject', protect, authorize('admin'), rejectReview);
 
@@ -156,7 +161,35 @@ router.put('/:id/reject', protect, authorize('admin'), rejectReview);
  * @body    {string} comment - Response text (min 5 characters)
  * @logic   - Creates admin response with timestamp
  *           - Updates review with response data
+ *           - Sends email notification to user
  */
 router.post('/:id/response', protect, authorize('admin'), addAdminResponse);
+
+// ============================================
+// ADMIN BULK OPERATIONS (NEW)
+// ============================================
+
+/**
+ * @route   PUT /api/reviews/bulk/approve
+ * @desc    Bulk approve multiple pending reviews
+ * @access  Private (Admin only)
+ * @body    {string[]} reviewIds - Array of review IDs to approve
+ * @logic   - Approves all pending reviews in the array
+ *           - Updates product ratings
+ *           - Sends email notifications to each user
+ */
+router.put('/bulk/approve', protect, authorize('admin'), bulkApproveReviews);
+
+/**
+ * @route   PUT /api/reviews/bulk/reject
+ * @desc    Bulk reject multiple pending reviews
+ * @access  Private (Admin only)
+ * @body    {string[]} reviewIds - Array of review IDs to reject
+ * @body    {string} reason - Reason for rejection (optional)
+ * @logic   - Rejects all pending reviews in the array
+ *           - Updates product ratings
+ *           - Sends email notifications to each user
+ */
+router.put('/bulk/reject', protect, authorize('admin'), bulkRejectReviews);
 
 export default router;

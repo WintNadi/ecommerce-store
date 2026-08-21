@@ -3,7 +3,7 @@ import { Outlet, useLocation } from 'react-router-dom';
 import Header from './Header';
 import Footer from './Footer';
 import Breadcrumbs from './Breadcrumbs';
-import Toast from './Toast';
+//import Toast from './Toast';
 import { useSelector } from 'react-redux';
 
 const Layout = () => {
@@ -35,9 +35,7 @@ const Layout = () => {
 
       {/* Footer */}
       <Footer />
-
-      {/* Toast Notifications */}
-      <Toast />
+      
     </div>
   );
 };

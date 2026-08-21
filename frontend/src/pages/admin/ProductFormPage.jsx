@@ -82,7 +82,6 @@ const ProductFormPage = () => {
     if (success) {
       dispatch(getProducts({ page: 1, limit: 10 }));
       dispatch(clearProductSuccess());
-      toast.success(isEdit ? 'Product updated successfully!' : 'Product created successfully!');
       
       const currentPath = window.location.pathname;
       if (currentPath.includes('/admin')) {
@@ -91,7 +90,7 @@ const ProductFormPage = () => {
         navigate('/seller/products');
       }
     }
-  }, [success, dispatch, navigate, isEdit]);
+  }, [success, dispatch, navigate]);
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -148,40 +147,60 @@ const ProductFormPage = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // Validate required fields
-    if (!formData.name.trim()) {
-      toast.error('Product name is required');
-      return;
-    }
-    if (!formData.description.trim()) {
-      toast.error('Product description is required');
-      return;
-    }
-    if (!formData.price || parseFloat(formData.price) <= 0) {
-      toast.error('Please enter a valid price');
-      return;
-    }
-    if (!formData.stock || parseInt(formData.stock) < 0) {
-      toast.error('Please enter a valid stock quantity');
-      return;
-    }
-
-    const submitData = {
-      ...formData,
-      price: parseFloat(formData.price),
-      comparePrice: formData.comparePrice ? parseFloat(formData.comparePrice) : undefined,
-      stock: parseInt(formData.stock),
-      category: formData.category && formData.category.trim() !== '' ? formData.category : null
-    };
-
+    // ✅ Show loading toast
+    const loadingToast = toast.loading(isEdit ? 'Updating product...' : 'Creating product...');
+    
     try {
+      // ✅ Validate required fields
+      if (!formData.name.trim()) {
+        toast.error('Product name is required', { id: loadingToast });
+        return;
+      }
+      if (!formData.description.trim()) {
+        toast.error('Product description is required', { id: loadingToast });
+        return;
+      }
+      if (!formData.price || parseFloat(formData.price) <= 0) {
+        toast.error('Please enter a valid price', { id: loadingToast });
+        return;
+      }
+      if (!formData.stock || parseInt(formData.stock) < 0) {
+        toast.error('Please enter a valid stock quantity', { id: loadingToast });
+        return;
+      }
+
+      const submitData = {
+        ...formData,
+        price: parseFloat(formData.price),
+        comparePrice: formData.comparePrice ? parseFloat(formData.comparePrice) : undefined,
+        stock: parseInt(formData.stock),
+        category: formData.category && formData.category.trim() !== '' ? formData.category : null
+      };
+
+      // ✅ Log what's being submitted for debugging
+      console.log('📤 Submitting product data:', submitData);
+
+      let result;
       if (isEdit) {
-        await dispatch(updateProduct({ id, productData: submitData })).unwrap();
+        result = await dispatch(updateProduct({ id, productData: submitData })).unwrap();
+        console.log('✅ Update result:', result);
+        toast.success('Product updated successfully! 🎉', { id: loadingToast });
       } else {
-        await dispatch(createProduct(submitData)).unwrap();
+        result = await dispatch(createProduct(submitData)).unwrap();
+        console.log('✅ Create result:', result);
+        toast.success('Product created successfully! 🎉', { id: loadingToast });
+      }
+      
+      // Navigate after success
+      const currentPath = window.location.pathname;
+      if (currentPath.includes('/admin')) {
+        navigate('/admin/products');
+      } else {
+        navigate('/seller/products');
       }
     } catch (error) {
-      toast.error(error.message || 'Failed to save product');
+      console.error('❌ Product save error:', error);
+      toast.error(error.message || 'Failed to save product', { id: loadingToast });
     }
   };
 
@@ -365,7 +384,7 @@ const ProductFormPage = () => {
                 {formData.images.map((img, index) => (
                   <div key={index} className="relative group">
                     <img
-                      src={img.url}
+                      src={img.url || img}
                       alt={`Product ${index + 1}`}
                       className="w-full h-32 object-cover rounded-lg border border-gray-200 dark:border-gray-700"
                       onError={(e) => {

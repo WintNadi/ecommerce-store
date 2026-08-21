@@ -29,7 +29,7 @@ import ProductPage from './pages/ProductPage';
 import CartPage from './pages/CartPage';
 import CheckoutPage from './pages/CheckoutPage';
 import NotFoundPage from './pages/NotFoundPage';
-import SellerStorePage from "./pages/SellerStorePage"; // ✅ Uncomment when file exists
+import SellerStorePage from './pages/SellerStorePage'; // ✅ Uncommented
 
 // Admin Pages
 import DashboardPage from './pages/admin/DashboardPage';
@@ -117,7 +117,7 @@ const App = () => {
               <Route path="shop" element={<ShopPage />} />
               <Route path="product/:id" element={<ProductPage />} />
               <Route path="cart" element={<CartPage />} />
-              {/* <Route path="seller/:id" element={<SellerStorePage />} /> */}
+              <Route path="seller/:id" element={<SellerStorePage />} /> {/* ✅ Uncommented */}
 
               {/* Auth Routes */}
               <Route path="login" element={<LoginPage />} />

@@ -27,6 +27,14 @@ const ProductImageUpload = ({
   }, [existingImages]);
 
   // ============================================
+  // GET SELECTED FILES (for parent to upload)
+  // ============================================
+
+  const getSelectedFiles = () => {
+    return selectedFiles;
+  };
+
+  // ============================================
   // DROPZONE HANDLERS
   // ============================================
 

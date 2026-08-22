@@ -13,27 +13,37 @@ import {
   CheckCircle,
   XCircle,
   ArrowUpRight,
-  ArrowDownRight
+  ArrowDownRight,
+  AlertCircle
 } from 'lucide-react';
 import { getOrderStats, getDailyOrderStats } from '../../store/slices/orderSlice';
 import { getProductStats } from '../../store/slices/productSlice';
+import Loader from '../../components/common/Loader';
+import ErrorMessage from '../../components/common/ErrorMessage';
 
 const DashboardPage = () => {
   const dispatch = useDispatch();
   const { user } = useSelector((state) => state.auth);
-  const { stats: orderStats, dailyStats } = useSelector((state) => state.orders);
-  const { stats: productStats } = useSelector((state) => state.products);
+  const { stats: orderStats, dailyStats, loading: orderLoading, error: orderError } = useSelector((state) => state.orders);
+  const { stats: productStats, loading: productLoading } = useSelector((state) => state.products);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
-      await Promise.all([
-        dispatch(getOrderStats()),
-        dispatch(getDailyOrderStats({ days: 7 })),
-        dispatch(getProductStats())
-      ]);
-      setLoading(false);
+      setError(null);
+      try {
+        await Promise.all([
+          dispatch(getOrderStats()).unwrap(),
+          dispatch(getDailyOrderStats({ days: 7 })).unwrap(),
+          dispatch(getProductStats()).unwrap()
+        ]);
+      } catch (err) {
+        setError(err.message || 'Failed to load dashboard data');
+      } finally {
+        setLoading(false);
+      }
     };
     fetchData();
   }, [dispatch]);
@@ -65,7 +75,7 @@ const DashboardPage = () => {
     },
     {
       title: 'Total Users',
-      value: 0,
+      value: orderStats?.totalUsers || 0,
       icon: Users,
       color: 'bg-orange-500',
       change: '+5.7%',
@@ -111,10 +121,31 @@ const DashboardPage = () => {
     }
   ];
 
+  // Loading state
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+        <Loader size="lg" text="Loading dashboard..." />
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-8">
+        <ErrorMessage
+          error={error}
+          variant="error"
+          title="Failed to load dashboard"
+          onClear={() => setError(null)}
+        />
+        <button
+          onClick={() => window.location.reload()}
+          className="mt-4 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition-colors"
+        >
+          Retry
+        </button>
       </div>
     );
   }
@@ -144,7 +175,7 @@ const DashboardPage = () => {
           {statsCards.map((stat, index) => (
             <div
               key={index}
-              className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow"
+              className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow border border-gray-100 dark:border-gray-700"
             >
               <div className="flex items-center justify-between">
                 <div>
@@ -153,7 +184,7 @@ const DashboardPage = () => {
                     {stat.value}
                   </p>
                 </div>
-                <div className={`p-3 rounded-full ${stat.color} bg-opacity-10`}>
+                <div className={`p-3 rounded-full ${stat.color} bg-opacity-10 dark:bg-opacity-20`}>
                   <stat.icon className={`h-6 w-6 ${stat.color}`} />
                 </div>
               </div>
@@ -172,39 +203,46 @@ const DashboardPage = () => {
           ))}
         </div>
 
-        {/* Quick Actions */}
+        {/* Quick Actions & Order Status */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-          <div className="lg:col-span-2 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
+          {/* Quick Actions */}
+          <div className="lg:col-span-2 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 border border-gray-100 dark:border-gray-700">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
               Quick Actions
             </h2>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
               <Link
-                to="/admin/products"
-                className="p-4 text-center border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                to="/admin/products/create"
+                className="p-4 text-center border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors group"
               >
-                <Package className="h-8 w-8 text-indigo-600 mx-auto mb-2" />
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Add Product</span>
+                <Package className="h-8 w-8 text-navy-600 dark:text-navy-400 mx-auto mb-2 group-hover:text-orange-500 dark:group-hover:text-orange-400 transition-colors" />
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300 group-hover:text-orange-500 dark:group-hover:text-orange-400 transition-colors">
+                  Add Product
+                </span>
               </Link>
               <Link
                 to="/admin/orders"
-                className="p-4 text-center border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                className="p-4 text-center border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors group"
               >
-                <ShoppingBag className="h-8 w-8 text-indigo-600 mx-auto mb-2" />
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">View Orders</span>
+                <ShoppingBag className="h-8 w-8 text-navy-600 dark:text-navy-400 mx-auto mb-2 group-hover:text-orange-500 dark:group-hover:text-orange-400 transition-colors" />
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300 group-hover:text-orange-500 dark:group-hover:text-orange-400 transition-colors">
+                  View Orders
+                </span>
               </Link>
               <Link
                 to="/admin/users"
-                className="p-4 text-center border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                className="p-4 text-center border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors group"
               >
-                <Users className="h-8 w-8 text-indigo-600 mx-auto mb-2" />
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Manage Users</span>
+                <Users className="h-8 w-8 text-navy-600 dark:text-navy-400 mx-auto mb-2 group-hover:text-orange-500 dark:group-hover:text-orange-400 transition-colors" />
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300 group-hover:text-orange-500 dark:group-hover:text-orange-400 transition-colors">
+                  Manage Users
+                </span>
               </Link>
             </div>
           </div>
 
           {/* Order Status Summary */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 border border-gray-100 dark:border-gray-700">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
               Order Status
             </h2>
@@ -225,10 +263,19 @@ const DashboardPage = () => {
         </div>
 
         {/* Recent Orders */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-            Recent Orders
-          </h2>
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 border border-gray-100 dark:border-gray-700">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+              Recent Orders
+            </h2>
+            <Link
+              to="/admin/orders"
+              className="text-sm text-navy-600 dark:text-navy-400 hover:text-orange-500 dark:hover:text-orange-400 transition-colors flex items-center gap-1"
+            >
+              View All
+              <ArrowUpRight className="h-4 w-4" />
+            </Link>
+          </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -245,7 +292,7 @@ const DashboardPage = () => {
                 {dailyStats && dailyStats.length > 0 ? (
                   dailyStats.slice(0, 5).map((stat, index) => (
                     <tr key={index} className="border-b border-gray-100 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
-                      <td className="py-3 px-4 text-indigo-600 dark:text-indigo-400 font-medium">
+                      <td className="py-3 px-4 text-navy-600 dark:text-navy-400 font-medium">
                         #ORD-{String(stat._id.year).slice(2)}{String(stat._id.month).padStart(2, '0')}{String(stat._id.day).padStart(2, '0')}-{String(index + 1).padStart(4, '0')}
                       </td>
                       <td className="py-3 px-4 text-gray-900 dark:text-white">Customer Name</td>
@@ -263,7 +310,7 @@ const DashboardPage = () => {
                       <td className="py-3 px-4 text-right">
                         <Link
                           to={`/admin/orders`}
-                          className="text-indigo-600 hover:text-indigo-500 dark:text-indigo-400 text-sm font-medium"
+                          className="text-navy-600 hover:text-orange-500 dark:text-navy-400 dark:hover:text-orange-400 text-sm font-medium transition-colors"
                         >
                           View
                         </Link>
@@ -273,7 +320,10 @@ const DashboardPage = () => {
                 ) : (
                   <tr>
                     <td colSpan="6" className="py-8 text-center text-gray-500 dark:text-gray-400">
-                      No recent orders found.
+                      <div className="flex flex-col items-center gap-2">
+                        <AlertCircle className="h-8 w-8 text-gray-400" />
+                        <p>No recent orders found.</p>
+                      </div>
                     </td>
                   </tr>
                 )}
@@ -286,4 +336,4 @@ const DashboardPage = () => {
   );
 };
 
-export default DashboardPage;  // ← ဒါကိုထည့်ပါ
+export default DashboardPage;

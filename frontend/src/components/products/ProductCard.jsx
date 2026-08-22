@@ -4,6 +4,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { Heart, ShoppingCart, Star, Clock } from 'lucide-react';
 import { addToCart } from '../../store/slices/cartSlice';
 import { addToWishlist, removeFromWishlist, getWishlist } from '../../store/slices/wishlistSlice';
+import toast from 'react-hot-toast';
 
 const ProductCard = ({ product }) => {
   const dispatch = useDispatch();
@@ -95,19 +96,23 @@ const ProductCard = ({ product }) => {
     e.stopPropagation();
 
     if (!isAuthenticated) {
+      toast.error('Please login to add items to cart');
       return;
     }
 
     if (isNotAvailable || isOutOfStock) {
+      toast.error('This product is not available');
       return;
     }
 
     try {
       await dispatch(addToCart({ productId: productId, quantity: 1 })).unwrap();
       setIsAdded(true);
+      toast.success('Added to cart! 🛒');
       setTimeout(() => setIsAdded(false), 2000);
     } catch (error) {
       console.error('Failed to add to cart:', error);
+      toast.error('Failed to add to cart');
     }
   };
 
@@ -116,6 +121,7 @@ const ProductCard = ({ product }) => {
     e.stopPropagation();
 
     if (!isAuthenticated) {
+      toast.error('Please login to add to wishlist');
       return;
     }
 
@@ -123,18 +129,21 @@ const ProductCard = ({ product }) => {
       if (isInWishlist) {
         await dispatch(removeFromWishlist(productId)).unwrap();
         setIsInWishlist(false);
+        toast.success('Removed from wishlist');
       } else {
         await dispatch(addToWishlist(productId)).unwrap();
         setIsInWishlist(true);
+        toast.success('Added to wishlist ❤️');
       }
       await dispatch(getWishlist());
     } catch (error) {
       console.error('Wishlist error:', error);
+      toast.error('Failed to update wishlist');
     }
   };
 
   return (
-    <div className="group relative bg-white dark:bg-gray-800 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden">
+    <div className="group relative bg-white dark:bg-gray-800 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden border border-gray-100 dark:border-gray-700">
       <Link to={`/product/${productId}`} className="block">
         <div className="relative aspect-square overflow-hidden bg-gray-100 dark:bg-gray-700">
           <img
@@ -161,33 +170,36 @@ const ProductCard = ({ product }) => {
               </span>
             )}
             {isNotAvailable && !isOutOfStock && (
-              <span className="px-2 py-1 text-xs font-semibold text-white bg-indigo-500 rounded flex items-center gap-1">
+              <span className="px-2 py-1 text-xs font-semibold text-white bg-navy-500 dark:bg-navy-600 rounded flex items-center gap-1">
                 <Clock className="h-3 w-3" />
                 Coming Soon
               </span>
             )}
           </div>
 
-          {/* Wishlist Button */}
+          {/* Wishlist Button - Navy + Orange theme */}
           <button
             onClick={handleWishlist}
-            className="absolute top-2 right-2 p-2 bg-white/80 dark:bg-gray-800/80 rounded-full hover:bg-white dark:hover:bg-gray-700 transition-colors z-10"
+            className="absolute top-2 right-2 p-2 bg-white/80 dark:bg-gray-800/80 rounded-full hover:bg-white dark:hover:bg-gray-700 transition-colors z-10 shadow-sm"
+            aria-label={isInWishlist ? 'Remove from wishlist' : 'Add to wishlist'}
           >
             <Heart 
               className={`h-4 w-4 transition-colors ${
                 isInWishlist 
                   ? 'text-red-500 fill-red-500' 
-                  : 'text-gray-600 dark:text-gray-400 hover:text-red-500'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-orange-500'
               }`} 
             />
           </button>
         </div>
 
         <div className="p-4">
-          <h3 className="text-sm font-medium text-gray-900 dark:text-white hover:text-indigo-600 dark:hover:text-indigo-400 truncate">
+          {/* Product Name - Navy hover */}
+          <h3 className="text-sm font-medium text-gray-900 dark:text-white hover:text-navy-600 dark:hover:text-navy-400 truncate transition-colors">
             {name}
           </h3>
 
+          {/* Rating */}
           <div className="flex items-center mt-1">
             <div className="flex items-center">
               {[...Array(5)].map((_, i) => (
@@ -206,10 +218,11 @@ const ProductCard = ({ product }) => {
             </span>
           </div>
 
+          {/* Price - Navy + Orange theme */}
           <div className="flex items-center mt-2">
             {isOnSale ? (
               <>
-                <span className="text-lg font-bold text-red-600 dark:text-red-400">
+                <span className="text-lg font-bold text-orange-500 dark:text-orange-400">
                   ${discountedPrice.toFixed(2)}
                 </span>
                 <span className="ml-2 text-sm text-gray-400 line-through">
@@ -217,21 +230,22 @@ const ProductCard = ({ product }) => {
                 </span>
               </>
             ) : (
-              <span className="text-lg font-bold text-gray-900 dark:text-white">
+              <span className="text-lg font-bold text-navy-600 dark:text-navy-400">
                 ${price.toFixed(2)}
               </span>
             )}
           </div>
 
+          {/* Low Stock Warning - Orange */}
           {!isOutOfStock && stock <= 5 && (
-            <p className="mt-1 text-xs text-orange-500">
+            <p className="mt-1 text-xs text-orange-500 dark:text-orange-400 font-medium">
               Only {stock} left in stock
             </p>
           )}
         </div>
       </Link>
 
-      {/* Add to Cart Button */}
+      {/* Add to Cart Button - Orange theme */}
       <div className="px-4 pb-4">
         {isNotAvailable ? (
           <button
@@ -244,7 +258,7 @@ const ProductCard = ({ product }) => {
         ) : isOutOfStock ? (
           <button
             disabled
-            className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-white bg-gray-400 rounded-md cursor-not-allowed"
+            className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-white bg-gray-400 dark:bg-gray-600 rounded-md cursor-not-allowed"
           >
             Out of Stock
           </button>
@@ -254,8 +268,8 @@ const ProductCard = ({ product }) => {
             disabled={isAdded}
             className={`w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-white rounded-md transition-colors ${
               isAdded
-                ? 'bg-green-500'
-                : 'bg-indigo-600 hover:bg-indigo-700'
+                ? 'bg-green-500 hover:bg-green-600'
+                : 'bg-orange-500 hover:bg-orange-600'
             }`}
           >
             <ShoppingCart className="h-4 w-4" />

@@ -18,6 +18,7 @@ import {
   RefreshCw
 } from 'lucide-react';
 import axios from 'axios';
+import toast from 'react-hot-toast';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
@@ -72,6 +73,7 @@ const CouponManagement = () => {
       setCoupons(response.data.data || []);
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to fetch coupons');
+      toast.error('Failed to fetch coupons');
     } finally {
       setIsLoading(false);
     }
@@ -83,6 +85,20 @@ const CouponManagement = () => {
   const handleSaveCoupon = async (e) => {
     e.preventDefault();
     setError(null);
+
+    // Validation
+    if (!couponForm.code.trim()) {
+      toast.error('Coupon code is required');
+      return;
+    }
+    if (!couponForm.discountValue || parseFloat(couponForm.discountValue) <= 0) {
+      toast.error('Please enter a valid discount value');
+      return;
+    }
+    if (!couponForm.validUntil) {
+      toast.error('Please select an expiry date');
+      return;
+    }
 
     try {
       const token = localStorage.getItem('accessToken');
@@ -104,12 +120,14 @@ const CouponManagement = () => {
           payload,
           { headers: { Authorization: `Bearer ${token}` } }
         );
+        toast.success('Coupon updated successfully');
       } else {
         response = await axios.post(
           `${API_URL}/coupons`,
           payload,
           { headers: { Authorization: `Bearer ${token}` } }
         );
+        toast.success('Coupon created successfully');
       }
 
       await fetchCoupons();
@@ -117,7 +135,9 @@ const CouponManagement = () => {
       setShowCreateModal(false);
       setEditingCoupon(null);
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to save coupon');
+      const message = err.response?.data?.message || 'Failed to save coupon';
+      setError(message);
+      toast.error(message);
     }
   };
 
@@ -132,8 +152,11 @@ const CouponManagement = () => {
       });
       await fetchCoupons();
       setShowDeleteModal(null);
+      toast.success('Coupon deleted successfully');
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to delete coupon');
+      const message = err.response?.data?.message || 'Failed to delete coupon';
+      setError(message);
+      toast.error(message);
     }
   };
 
@@ -149,8 +172,11 @@ const CouponManagement = () => {
         { headers: { Authorization: `Bearer ${token}` } }
       );
       await fetchCoupons();
+      toast.success('Coupon status updated');
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to toggle coupon status');
+      const message = err.response?.data?.message || 'Failed to toggle coupon status';
+      setError(message);
+      toast.error(message);
     }
   };
 
@@ -253,7 +279,7 @@ const CouponManagement = () => {
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
-        <Loader2 className="h-12 w-12 animate-spin text-indigo-600" />
+        <Loader2 className="h-12 w-12 animate-spin text-orange-500" />
       </div>
     );
   }
@@ -265,7 +291,7 @@ const CouponManagement = () => {
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
           <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-              <Tag className="h-6 w-6 text-indigo-600" />
+              <Tag className="h-6 w-6 text-orange-500" />
               Coupon Management
             </h1>
             <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
@@ -275,7 +301,8 @@ const CouponManagement = () => {
           <div className="flex items-center gap-3">
             <button
               onClick={fetchCoupons}
-              className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+              className="p-2 text-gray-500 hover:text-navy-600 dark:text-gray-400 dark:hover:text-navy-400 transition-colors"
+              title="Refresh"
             >
               <RefreshCw className="h-5 w-5" />
             </button>
@@ -284,7 +311,7 @@ const CouponManagement = () => {
                 resetForm();
                 setShowCreateModal(true);
               }}
-              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+              className="flex items-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition-colors"
             >
               <Plus className="h-4 w-4" />
               Create Coupon
@@ -293,14 +320,14 @@ const CouponManagement = () => {
         </div>
 
         {/* Search */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 mb-6">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 mb-6 border border-gray-200 dark:border-gray-700">
           <div className="relative">
             <input
               type="text"
               placeholder="Search coupons by code or description..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full px-4 py-2 pl-10 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
+              className="w-full px-4 py-2 pl-10 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/50 dark:bg-gray-700 dark:text-white transition-all"
             />
             <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
           </div>
@@ -323,7 +350,7 @@ const CouponManagement = () => {
         )}
 
         {/* Coupons Table */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden border border-gray-200 dark:border-gray-700">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -388,7 +415,7 @@ const CouponManagement = () => {
                           <div className="flex items-center justify-end gap-2">
                             <button
                               onClick={() => handleToggleStatus(coupon._id)}
-                              className="p-1.5 text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
+                              className="p-1.5 text-gray-400 hover:text-navy-600 dark:hover:text-navy-400 transition-colors"
                               title={coupon.isActive ? 'Deactivate' : 'Activate'}
                             >
                               {coupon.isActive ? (
@@ -399,7 +426,7 @@ const CouponManagement = () => {
                             </button>
                             <button
                               onClick={() => handleEditCoupon(coupon)}
-                              className="p-1.5 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                              className="p-1.5 text-gray-400 hover:text-navy-600 dark:hover:text-navy-400 transition-colors"
                               title="Edit"
                             >
                               <Edit className="h-4 w-4" />
@@ -433,7 +460,7 @@ const CouponManagement = () => {
                               resetForm();
                               setShowCreateModal(true);
                             }}
-                            className="mt-4 inline-block px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                            className="mt-4 inline-block px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition-colors"
                           >
                             Create First Coupon
                           </button>
@@ -453,7 +480,7 @@ const CouponManagement = () => {
           ============================================ */}
       {showCreateModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6 border border-gray-200 dark:border-gray-700">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                 {editingCoupon ? 'Edit Coupon' : 'Create New Coupon'}
@@ -480,7 +507,7 @@ const CouponManagement = () => {
                   value={couponForm.code}
                   onChange={(e) => setCouponForm({ ...couponForm, code: e.target.value.toUpperCase() })}
                   placeholder="e.g., SUMMER2024"
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/50 dark:bg-gray-700 dark:text-white transition-all"
                   required
                 />
               </div>
@@ -495,7 +522,7 @@ const CouponManagement = () => {
                   value={couponForm.description}
                   onChange={(e) => setCouponForm({ ...couponForm, description: e.target.value })}
                   placeholder="Brief description of the coupon"
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/50 dark:bg-gray-700 dark:text-white transition-all"
                 />
               </div>
 
@@ -508,7 +535,7 @@ const CouponManagement = () => {
                   <select
                     value={couponForm.discountType}
                     onChange={(e) => setCouponForm({ ...couponForm, discountType: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/50 dark:bg-gray-700 dark:text-white transition-all"
                   >
                     <option value="percentage">Percentage (%)</option>
                     <option value="fixed">Fixed ($)</option>
@@ -525,7 +552,7 @@ const CouponManagement = () => {
                     value={couponForm.discountValue}
                     onChange={(e) => setCouponForm({ ...couponForm, discountValue: e.target.value })}
                     placeholder={couponForm.discountType === 'percentage' ? 'e.g., 20' : 'e.g., 10.00'}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/50 dark:bg-gray-700 dark:text-white transition-all"
                     required
                   />
                 </div>
@@ -544,7 +571,7 @@ const CouponManagement = () => {
                     value={couponForm.maxDiscountAmount}
                     onChange={(e) => setCouponForm({ ...couponForm, maxDiscountAmount: e.target.value })}
                     placeholder="e.g., 50.00"
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/50 dark:bg-gray-700 dark:text-white transition-all"
                   />
                 </div>
                 <div>
@@ -558,7 +585,7 @@ const CouponManagement = () => {
                     value={couponForm.minOrderAmount}
                     onChange={(e) => setCouponForm({ ...couponForm, minOrderAmount: e.target.value })}
                     placeholder="e.g., 50.00"
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/50 dark:bg-gray-700 dark:text-white transition-all"
                   />
                 </div>
               </div>
@@ -571,7 +598,7 @@ const CouponManagement = () => {
                 <select
                   value={couponForm.appliesTo}
                   onChange={(e) => setCouponForm({ ...couponForm, appliesTo: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/50 dark:bg-gray-700 dark:text-white transition-all"
                 >
                   <option value="all">All Products</option>
                   <option value="category">Specific Categories</option>
@@ -592,7 +619,7 @@ const CouponManagement = () => {
                     min="1"
                     value={couponForm.usageLimit}
                     onChange={(e) => setCouponForm({ ...couponForm, usageLimit: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/50 dark:bg-gray-700 dark:text-white transition-all"
                     required
                   />
                 </div>
@@ -605,7 +632,7 @@ const CouponManagement = () => {
                     min="1"
                     value={couponForm.userUsageLimit}
                     onChange={(e) => setCouponForm({ ...couponForm, userUsageLimit: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/50 dark:bg-gray-700 dark:text-white transition-all"
                   />
                 </div>
               </div>
@@ -620,7 +647,7 @@ const CouponManagement = () => {
                     type="date"
                     value={couponForm.validFrom}
                     onChange={(e) => setCouponForm({ ...couponForm, validFrom: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/50 dark:bg-gray-700 dark:text-white transition-all"
                   />
                 </div>
                 <div>
@@ -631,7 +658,7 @@ const CouponManagement = () => {
                     type="date"
                     value={couponForm.validUntil}
                     onChange={(e) => setCouponForm({ ...couponForm, validUntil: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/50 dark:bg-gray-700 dark:text-white transition-all"
                     required
                   />
                 </div>
@@ -643,7 +670,7 @@ const CouponManagement = () => {
                   type="checkbox"
                   checked={couponForm.isActive}
                   onChange={(e) => setCouponForm({ ...couponForm, isActive: e.target.checked })}
-                  className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500"
+                  className="w-4 h-4 text-orange-500 rounded focus:ring-orange-500"
                 />
                 <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
                   Active
@@ -658,13 +685,13 @@ const CouponManagement = () => {
                     setShowCreateModal(false);
                     resetForm();
                   }}
-                  className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                  className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                  className="flex-1 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition-colors"
                 >
                   {editingCoupon ? 'Update Coupon' : 'Create Coupon'}
                 </button>
@@ -679,7 +706,7 @@ const CouponManagement = () => {
           ============================================ */}
       {showDeleteModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6 border border-gray-200 dark:border-gray-700">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
               Delete Coupon
             </h3>
@@ -690,13 +717,13 @@ const CouponManagement = () => {
             <div className="flex gap-3">
               <button
                 onClick={() => setShowDeleteModal(null)}
-                className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300"
               >
                 Cancel
               </button>
               <button
                 onClick={() => handleDeleteCoupon(showDeleteModal._id)}
-                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
               >
                 Delete
               </button>

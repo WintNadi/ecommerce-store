@@ -1,256 +1,352 @@
 import Product from '../models/Product.js';
-import { uploadToSupabase, deleteFromSupabase } from '../middleware/upload.js';
-import { asyncHandler } from '../middleware/errorHandler.js';
+import { supabase } from '../config/supabase.js';
 import { AppError } from '../middleware/errorHandler.js';
 
 // ============================================
-// UPLOAD SINGLE PRODUCT IMAGE
+// UPLOAD SINGLE IMAGE
 // ============================================
 
 /**
- * @desc    Upload a single product image
+ * @desc    Upload a single image for a product
  * @route   POST /api/products/:id/upload-image
  * @access  Private (Admin/Seller)
  */
-export const uploadProductImage = asyncHandler(async (req, res) => {
-  const { id } = req.params;
+export const uploadProductImage = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const file = req.file;
 
-  // ✅ Validate product ID
-  if (!id || id === 'temp' || id === 'undefined') {
-    throw new AppError('Invalid product ID. Please save the product first.', 400);
+    if (!file) {
+      return res.status(400).json({
+        success: false,
+        message: 'No image file provided'
+      });
+    }
+
+    // Check if product exists
+    const product = await Product.findById(id);
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: 'Product not found'
+      });
+    }
+
+    // Check authorization
+    if (req.user.role === 'seller' && product.seller?.toString() !== req.user._id.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: 'You are not authorized to upload images for this product'
+      });
+    }
+
+    // Check Supabase credentials
+    if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      console.error('❌ Supabase credentials missing!');
+      return res.status(500).json({
+        success: false,
+        message: 'Supabase is not configured. Please check your environment variables.'
+      });
+    }
+
+    // Upload to Supabase
+    const fileExt = file.originalname.split('.').pop();
+    const fileName = `${Date.now()}-${Math.random().toString(36).substring(2, 15)}.${fileExt}`;
+    const filePath = `${id}/${fileName}`;
+
+    console.log(`📤 Uploading file: ${file.originalname} to ${filePath}`);
+
+    const { data, error } = await supabase.storage
+      .from('products')
+      .upload(filePath, file.buffer, {
+        cacheControl: '3600',
+        upsert: false,
+        contentType: file.mimetype
+      });
+
+    if (error) {
+      console.error('❌ Supabase upload error:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to upload image to storage',
+        error: error.message
+      });
+    }
+
+    // Get public URL
+    const { data: urlData } = supabase.storage
+      .from('products')
+      .getPublicUrl(filePath);
+
+    console.log('✅ Image uploaded successfully:', urlData.publicUrl);
+
+    // Update product with new image
+    const existingImages = product.images || [];
+    product.images = [...existingImages, urlData.publicUrl];
+    await product.save({ validateBeforeSave: false });
+
+    res.status(200).json({
+      success: true,
+      message: 'Image uploaded successfully',
+      data: {
+        imageUrl: urlData.publicUrl,
+        allImages: product.images
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Image upload error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to upload image'
+    });
   }
-
-  // Find product
-  const product = await Product.findById(id);
-  if (!product) {
-    throw new AppError('Product not found', 404);
-  }
-
-  // Check authorization
-  if (req.user.role !== 'admin' && product.seller?.toString() !== req.user._id.toString()) {
-    throw new AppError('You are not authorized to upload images for this product', 403);
-  }
-
-  // Check if file exists
-  if (!req.file) {
-    throw new AppError('No image file uploaded', 400);
-  }
-
-  // Upload to Supabase
-  const result = await uploadToSupabase(req.file, 'products/');
-  const imageUrl = result.url;
-
-  // Update product
-  if (!product.images) {
-    product.images = [];
-  }
-  product.images.push(imageUrl);
-  
-  // If no primary image set, set this as primary
-  if (!product.image) {
-    product.image = imageUrl;
-  }
-
-  await product.save();
-
-  res.status(200).json({
-    success: true,
-    message: 'Image uploaded successfully',
-    data: {
-      imageUrl,
-      product,
-    },
-  });
-});
+};
 
 // ============================================
-// UPLOAD MULTIPLE PRODUCT IMAGES
+// UPLOAD MULTIPLE IMAGES (MAIN FUNCTION)
 // ============================================
 
 /**
- * @desc    Upload multiple product images
+ * @desc    Upload multiple images for a product
  * @route   POST /api/products/:id/upload-images
  * @access  Private (Admin/Seller)
  */
-export const uploadMultipleProductImages = asyncHandler(async (req, res) => {
-  const { id } = req.params;
+export const uploadMultipleProductImages = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const files = req.files;
 
-  // ✅ Validate product ID
-  if (!id || id === 'temp' || id === 'undefined') {
-    throw new AppError('Invalid product ID. Please save the product first.', 400);
+    console.log('📸 Upload request received:');
+    console.log('  - Product ID:', id);
+    console.log('  - Files count:', files?.length || 0);
+    console.log('  - User:', req.user?.email);
+
+    if (!files || files.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'No image files provided'
+      });
+    }
+
+    // Check if product exists
+    const product = await Product.findById(id);
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: 'Product not found'
+      });
+    }
+
+    // Check authorization
+    if (req.user.role === 'seller' && product.seller?.toString() !== req.user._id.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: 'You are not authorized to upload images for this product'
+      });
+    }
+
+    // Check Supabase credentials
+    if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      console.error('❌ Supabase credentials missing!');
+      return res.status(500).json({
+        success: false,
+        message: 'Supabase is not configured. Please check your environment variables.'
+      });
+    }
+
+    const uploadedUrls = [];
+    const errors = [];
+
+    for (const file of files) {
+      try {
+        console.log(`📤 Uploading file: ${file.originalname} (${file.size} bytes)`);
+
+        // Generate unique filename
+        const fileExt = file.originalname.split('.').pop();
+        const fileName = `${Date.now()}-${Math.random().toString(36).substring(2, 15)}.${fileExt}`;
+        const filePath = `${id}/${fileName}`;
+
+        // Upload to Supabase
+        const { data, error } = await supabase.storage
+          .from('products')
+          .upload(filePath, file.buffer, {
+            cacheControl: '3600',
+            upsert: false,
+            contentType: file.mimetype
+          });
+
+        if (error) {
+          console.error('❌ Supabase upload error for file:', file.originalname, error);
+          errors.push({ 
+            filename: file.originalname, 
+            error: error.message 
+          });
+          continue;
+        }
+
+        console.log(`✅ File uploaded: ${fileName}`);
+
+        // Get public URL
+        const { data: urlData } = supabase.storage
+          .from('products')
+          .getPublicUrl(filePath);
+
+        uploadedUrls.push(urlData.publicUrl);
+
+      } catch (err) {
+        console.error('❌ Error uploading file:', file.originalname, err);
+        errors.push({ 
+          filename: file.originalname, 
+          error: err.message 
+        });
+      }
+    }
+
+    console.log(`📊 Upload summary: ${uploadedUrls.length} success, ${errors.length} failed`);
+
+    // Update product with new image URLs
+    const existingImages = product.images || [];
+    const allImages = [...existingImages, ...uploadedUrls];
+    product.images = allImages;
+    await product.save({ validateBeforeSave: false });
+
+    // If all files failed, return error
+    if (uploadedUrls.length === 0 && errors.length > 0) {
+      return res.status(500).json({
+        success: false,
+        message: 'All images failed to upload',
+        errors: errors
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `${uploadedUrls.length} images uploaded successfully${errors.length > 0 ? `, ${errors.length} failed` : ''}`,
+      data: {
+        imageUrls: uploadedUrls,
+        allImages: allImages,
+        errors: errors.length > 0 ? errors : undefined
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Multiple image upload error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to upload images'
+    });
   }
-
-  // Find product
-  const product = await Product.findById(id);
-  if (!product) {
-    throw new AppError('Product not found', 404);
-  }
-
-  // Check authorization
-  if (req.user.role !== 'admin' && product.seller?.toString() !== req.user._id.toString()) {
-    throw new AppError('You are not authorized to upload images for this product', 403);
-  }
-
-  // Check if files exist
-  if (!req.files || req.files.length === 0) {
-    throw new AppError('No image files uploaded', 400);
-  }
-
-  const imageUrls = [];
-
-  // Upload each file to Supabase
-  for (const file of req.files) {
-    const result = await uploadToSupabase(file, 'products/');
-    imageUrls.push(result.url);
-  }
-
-  // Initialize images array if needed
-  if (!product.images) {
-    product.images = [];
-  }
-
-  product.images.push(...imageUrls);
-  
-  // If no primary image set, set first as primary
-  if (!product.image && imageUrls.length > 0) {
-    product.image = imageUrls[0];
-  }
-
-  await product.save();
-
-  res.status(200).json({
-    success: true,
-    message: `${imageUrls.length} images uploaded successfully`,
-    data: {
-      imageUrls,
-      product,
-    },
-  });
-});
+};
 
 // ============================================
-// DELETE PRODUCT IMAGE
+// DELETE IMAGE
 // ============================================
 
 /**
- * @desc    Delete a product image
+ * @desc    Delete an image from a product
  * @route   DELETE /api/products/:id/images/:imageIndex
  * @access  Private (Admin/Seller)
  */
-export const deleteProductImage = asyncHandler(async (req, res) => {
-  const { id, imageIndex } = req.params;
+export const deleteProductImage = async (req, res) => {
+  try {
+    const { id, imageIndex } = req.params;
+    const index = parseInt(imageIndex);
 
-  // ✅ Validate product ID
-  if (!id || id === 'temp' || id === 'undefined') {
-    throw new AppError('Invalid product ID', 400);
+    // Check if product exists
+    const product = await Product.findById(id);
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: 'Product not found'
+      });
+    }
+
+    // Check authorization
+    if (req.user.role === 'seller' && product.seller?.toString() !== req.user._id.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: 'You are not authorized to delete images for this product'
+      });
+    }
+
+    const images = product.images || [];
+    if (index < 0 || index >= images.length) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid image index'
+      });
+    }
+
+    // Remove image from array
+    images.splice(index, 1);
+    product.images = images;
+    await product.save({ validateBeforeSave: false });
+
+    res.status(200).json({
+      success: true,
+      message: 'Image deleted successfully',
+      data: {
+        remainingImages: product.images
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Delete image error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to delete image'
+    });
   }
-
-  // Find product
-  const product = await Product.findById(id);
-  if (!product) {
-    throw new AppError('Product not found', 404);
-  }
-
-  // Check authorization
-  if (req.user.role !== 'admin' && product.seller?.toString() !== req.user._id.toString()) {
-    throw new AppError('You are not authorized to delete images for this product', 403);
-  }
-
-  // Check if images exist
-  if (!product.images || product.images.length === 0) {
-    throw new AppError('No images to delete', 404);
-  }
-
-  // Validate index
-  const index = parseInt(imageIndex);
-  if (isNaN(index) || index < 0 || index >= product.images.length) {
-    throw new AppError('Invalid image index', 400);
-  }
-
-  const imageUrl = product.images[index];
-  
-  // Extract file path from URL
-  const filePath = imageUrl.split('/public/').pop();
-  
-  if (filePath) {
-    await deleteFromSupabase(filePath);
-  }
-
-  // Remove from product
-  product.images.splice(index, 1);
-  
-  // If deleted image was primary, set new primary
-  if (product.image === imageUrl && product.images.length > 0) {
-    product.image = product.images[0];
-  } else if (product.image === imageUrl && product.images.length === 0) {
-    product.image = '';
-  }
-
-  await product.save();
-
-  res.status(200).json({
-    success: true,
-    message: 'Image deleted successfully',
-    data: product,
-  });
-});
+};
 
 // ============================================
-// DELETE ALL PRODUCT IMAGES
+// DELETE ALL IMAGES
 // ============================================
 
 /**
- * @desc    Delete all product images
+ * @desc    Delete all images from a product
  * @route   DELETE /api/products/:id/images
  * @access  Private (Admin/Seller)
  */
-export const deleteAllProductImages = asyncHandler(async (req, res) => {
-  const { id } = req.params;
+export const deleteAllProductImages = async (req, res) => {
+  try {
+    const { id } = req.params;
 
-  // ✅ Validate product ID
-  if (!id || id === 'temp' || id === 'undefined') {
-    throw new AppError('Invalid product ID', 400);
-  }
-
-  const product = await Product.findById(id);
-  if (!product) {
-    throw new AppError('Product not found', 404);
-  }
-
-  if (req.user.role !== 'admin' && product.seller?.toString() !== req.user._id.toString()) {
-    throw new AppError('You are not authorized to delete images for this product', 403);
-  }
-
-  if (!product.images || product.images.length === 0) {
-    throw new AppError('No images to delete', 404);
-  }
-
-  // Delete all images from Supabase
-  for (const imageUrl of product.images) {
-    try {
-      const filePath = imageUrl.split('/public/').pop();
-      if (filePath) {
-        await deleteFromSupabase(filePath);
-      }
-    } catch (error) {
-      console.error('Delete error:', error);
-      // Continue with next image
+    const product = await Product.findById(id);
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: 'Product not found'
+      });
     }
+
+    if (req.user.role === 'seller' && product.seller?.toString() !== req.user._id.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: 'You are not authorized to delete images for this product'
+      });
+    }
+
+    product.images = [];
+    await product.save({ validateBeforeSave: false });
+
+    res.status(200).json({
+      success: true,
+      message: 'All images deleted successfully'
+    });
+
+  } catch (error) {
+    console.error('❌ Delete all images error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to delete images'
+    });
   }
-
-  product.images = [];
-  product.image = '';
-  await product.save();
-
-  res.status(200).json({
-    success: true,
-    message: 'All images deleted successfully',
-    data: product,
-  });
-});
+};
 
 // ============================================
-// ✅ NEW: GET PRODUCT IMAGES
+// GET PRODUCT IMAGES
 // ============================================
 
 /**
@@ -258,136 +354,159 @@ export const deleteAllProductImages = asyncHandler(async (req, res) => {
  * @route   GET /api/products/:id/images
  * @access  Private (Admin/Seller)
  */
-export const getProductImages = asyncHandler(async (req, res) => {
-  const { id } = req.params;
+export const getProductImages = async (req, res) => {
+  try {
+    const { id } = req.params;
 
-  // ✅ Validate product ID
-  if (!id || id === 'temp' || id === 'undefined') {
-    throw new AppError('Invalid product ID', 400);
+    const product = await Product.findById(id);
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: 'Product not found'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        images: product.images || [],
+        count: (product.images || []).length
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Get images error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to get images'
+    });
   }
-
-  const product = await Product.findById(id);
-  if (!product) {
-    throw new AppError('Product not found', 404);
-  }
-
-  // Check authorization (allow product owner or admin)
-  if (req.user.role !== 'admin' && product.seller?.toString() !== req.user._id.toString()) {
-    throw new AppError('You are not authorized to view images for this product', 403);
-  }
-
-  res.status(200).json({
-    success: true,
-    data: {
-      images: product.images || [],
-      primaryImage: product.image || null,
-      count: product.images?.length || 0,
-    },
-  });
-});
+};
 
 // ============================================
-// ✅ NEW: SET PRIMARY IMAGE
+// SET PRIMARY IMAGE
 // ============================================
 
 /**
- * @desc    Set a specific image as the primary image
+ * @desc    Set a primary image for a product
  * @route   PUT /api/products/:id/images/:imageIndex/primary
  * @access  Private (Admin/Seller)
  */
-export const setPrimaryImage = asyncHandler(async (req, res) => {
-  const { id, imageIndex } = req.params;
+export const setPrimaryImage = async (req, res) => {
+  try {
+    const { id, imageIndex } = req.params;
+    const index = parseInt(imageIndex);
 
-  // ✅ Validate product ID
-  if (!id || id === 'temp' || id === 'undefined') {
-    throw new AppError('Invalid product ID', 400);
+    const product = await Product.findById(id);
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: 'Product not found'
+      });
+    }
+
+    if (req.user.role === 'seller' && product.seller?.toString() !== req.user._id.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: 'You are not authorized to update images for this product'
+      });
+    }
+
+    const images = product.images || [];
+    if (index < 0 || index >= images.length) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid image index'
+      });
+    }
+
+    // Move the selected image to the front
+    const selectedImage = images.splice(index, 1)[0];
+    images.unshift(selectedImage);
+    product.images = images;
+    await product.save({ validateBeforeSave: false });
+
+    res.status(200).json({
+      success: true,
+      message: 'Primary image set successfully',
+      data: {
+        primaryImage: product.images[0],
+        allImages: product.images
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Set primary image error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to set primary image'
+    });
   }
-
-  const product = await Product.findById(id);
-  if (!product) {
-    throw new AppError('Product not found', 404);
-  }
-
-  if (req.user.role !== 'admin' && product.seller?.toString() !== req.user._id.toString()) {
-    throw new AppError('You are not authorized to set primary image for this product', 403);
-  }
-
-  if (!product.images || product.images.length === 0) {
-    throw new AppError('No images to set as primary', 404);
-  }
-
-  const index = parseInt(imageIndex);
-  if (isNaN(index) || index < 0 || index >= product.images.length) {
-    throw new AppError('Invalid image index', 400);
-  }
-
-  product.image = product.images[index];
-  await product.save();
-
-  res.status(200).json({
-    success: true,
-    message: 'Primary image set successfully',
-    data: {
-      primaryImage: product.image,
-      product,
-    },
-  });
-});
+};
 
 // ============================================
-// ✅ NEW: REORDER IMAGES
+// REORDER IMAGES
 // ============================================
 
 /**
- * @desc    Reorder product images
+ * @desc    Reorder images for a product
  * @route   PUT /api/products/:id/images/reorder
  * @access  Private (Admin/Seller)
  */
-export const reorderImages = asyncHandler(async (req, res) => {
-  const { id } = req.params;
-  const { imageOrder } = req.body;
+export const reorderImages = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { imageOrder } = req.body;
 
-  // ✅ Validate product ID
-  if (!id || id === 'temp' || id === 'undefined') {
-    throw new AppError('Invalid product ID', 400);
+    if (!imageOrder || !Array.isArray(imageOrder) || imageOrder.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide a valid image order array'
+      });
+    }
+
+    const product = await Product.findById(id);
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: 'Product not found'
+      });
+    }
+
+    if (req.user.role === 'seller' && product.seller?.toString() !== req.user._id.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: 'You are not authorized to reorder images for this product'
+      });
+    }
+
+    const currentImages = product.images || [];
+    const allImageIndexes = imageOrder.every(index => index >= 0 && index < currentImages.length);
+
+    if (!allImageIndexes || imageOrder.length !== currentImages.length) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid image order - all images must be included'
+      });
+    }
+
+    const reorderedImages = imageOrder.map(index => currentImages[index]);
+    product.images = reorderedImages;
+    await product.save({ validateBeforeSave: false });
+
+    res.status(200).json({
+      success: true,
+      message: 'Images reordered successfully',
+      data: {
+        images: product.images
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Reorder images error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to reorder images'
+    });
   }
-
-  if (!imageOrder || !Array.isArray(imageOrder) || imageOrder.length === 0) {
-    throw new AppError('Invalid image order', 400);
-  }
-
-  const product = await Product.findById(id);
-  if (!product) {
-    throw new AppError('Product not found', 404);
-  }
-
-  if (req.user.role !== 'admin' && product.seller?.toString() !== req.user._id.toString()) {
-    throw new AppError('You are not authorized to reorder images for this product', 403);
-  }
-
-  // Validate all image IDs exist
-  const allImages = product.images || [];
-  const validOrder = imageOrder.every((url) => allImages.includes(url));
-  
-  if (!validOrder || imageOrder.length !== allImages.length) {
-    throw new AppError('Invalid image order - some images are missing or extra', 400);
-  }
-
-  product.images = imageOrder;
-  
-  // Update primary image if needed
-  if (product.image && !imageOrder.includes(product.image)) {
-    product.image = imageOrder[0] || '';
-  }
-
-  await product.save();
-
-  res.status(200).json({
-    success: true,
-    message: 'Images reordered successfully',
-    data: {
-      images: product.images,
-      primaryImage: product.image,
-    },
-  });
-});
+};

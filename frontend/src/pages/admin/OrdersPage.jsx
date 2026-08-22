@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { Link } from 'react-router-dom';
 import { getAllOrders, updateOrderStatus, clearOrderError } from '../../store/slices/orderSlice';
-import { Eye, ChevronLeft, ChevronRight, Search, Filter, X, Loader2 } from 'lucide-react';
+import { Eye, ChevronLeft, ChevronRight, Search, Filter, X, Loader2, AlertCircle } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 const OrdersPage = () => {
   const dispatch = useDispatch();
@@ -25,10 +26,16 @@ const OrdersPage = () => {
 
   const handleStatusUpdate = async () => {
     if (selectedOrder && newStatus) {
-      await dispatch(updateOrderStatus({ id: selectedOrder._id, status: newStatus })).unwrap();
-      setShowStatusModal(false);
-      setSelectedOrder(null);
-      setNewStatus('');
+      try {
+        await dispatch(updateOrderStatus({ id: selectedOrder._id, status: newStatus })).unwrap();
+        toast.success(`Order status updated to ${newStatus}`);
+        setShowStatusModal(false);
+        setSelectedOrder(null);
+        setNewStatus('');
+        dispatch(getAllOrders({ page: currentPage, status: statusFilter, search: searchTerm }));
+      } catch (error) {
+        toast.error(error.message || 'Failed to update order status');
+      }
     }
   };
 
@@ -60,7 +67,7 @@ const OrdersPage = () => {
   if (isLoading && orders.length === 0) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
-        <Loader2 className="h-12 w-12 animate-spin text-indigo-600" />
+        <Loader2 className="h-12 w-12 animate-spin text-orange-500" />
       </div>
     );
   }
@@ -70,16 +77,21 @@ const OrdersPage = () => {
       <div className="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            Order Management
-          </h1>
-          <span className="text-sm text-gray-500 dark:text-gray-400">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+              Order Management
+            </h1>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+              View and manage all customer orders
+            </p>
+          </div>
+          <span className="text-sm text-gray-500 dark:text-gray-400 bg-white dark:bg-gray-800 px-3 py-1 rounded-lg border border-gray-200 dark:border-gray-700">
             Total: {pagination?.total || 0} orders
           </span>
         </div>
 
         {/* Filters */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 mb-6">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 mb-6 border border-gray-200 dark:border-gray-700">
           <form onSubmit={handleSearch} className="flex flex-col sm:flex-row gap-4">
             <div className="flex-1 relative">
               <input
@@ -87,7 +99,7 @@ const OrdersPage = () => {
                 placeholder="Search by order number or customer..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full px-4 py-2 pl-10 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
+                className="w-full px-4 py-2 pl-10 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/50 dark:bg-gray-700 dark:text-white transition-all"
               />
               <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
             </div>
@@ -95,7 +107,7 @@ const OrdersPage = () => {
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
+                className="px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/50 dark:bg-gray-700 dark:text-white transition-all"
               >
                 <option value="">All Status</option>
                 <option value="pending">Pending</option>
@@ -117,20 +129,24 @@ const OrdersPage = () => {
           </form>
         </div>
 
+        {/* Error */}
         {error && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4 dark:bg-red-900/30 dark:border-red-700 dark:text-red-300">
-            {error}
-            <button
-              onClick={() => dispatch(clearOrderError())}
-              className="ml-2 text-sm font-medium hover:underline"
-            >
-              Dismiss
-            </button>
+          <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg flex items-start gap-3">
+            <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+              <button
+                onClick={() => dispatch(clearOrderError())}
+                className="text-sm text-red-600 hover:text-red-700 dark:text-red-400 mt-1"
+              >
+                Dismiss
+              </button>
+            </div>
           </div>
         )}
 
         {/* Orders Table */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden border border-gray-200 dark:border-gray-700">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -151,7 +167,7 @@ const OrdersPage = () => {
                       <td className="py-3 px-4">
                         <Link
                           to={`/orders/${order._id}`}
-                          className="text-indigo-600 hover:text-indigo-500 dark:text-indigo-400 font-medium"
+                          className="text-navy-600 hover:text-orange-500 dark:text-navy-400 dark:hover:text-orange-400 font-medium transition-colors"
                         >
                           #{order.orderNumber}
                         </Link>
@@ -182,7 +198,8 @@ const OrdersPage = () => {
                         <div className="flex items-center justify-end gap-2">
                           <Link
                             to={`/orders/${order._id}`}
-                            className="p-1.5 text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
+                            className="p-1.5 text-gray-400 hover:text-navy-600 dark:hover:text-navy-400 transition-colors"
+                            title="View Order"
                           >
                             <Eye className="h-4 w-4" />
                           </Link>
@@ -192,7 +209,7 @@ const OrdersPage = () => {
                               setNewStatus(order.status);
                               setShowStatusModal(true);
                             }}
-                            className="px-3 py-1 text-xs font-medium text-indigo-600 border border-indigo-200 dark:border-indigo-800 rounded hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors"
+                            className="px-3 py-1 text-xs font-medium text-navy-600 border border-navy-200 dark:border-navy-800 rounded hover:bg-navy-50 dark:hover:bg-navy-900/20 transition-colors"
                           >
                             Update
                           </button>
@@ -203,7 +220,10 @@ const OrdersPage = () => {
                 ) : (
                   <tr>
                     <td colSpan="7" className="py-8 text-center text-gray-500 dark:text-gray-400">
-                      No orders found.
+                      <div className="flex flex-col items-center gap-2">
+                        <AlertCircle className="h-8 w-8 text-gray-400" />
+                        <p>No orders found.</p>
+                      </div>
                     </td>
                   </tr>
                 )}
@@ -213,11 +233,11 @@ const OrdersPage = () => {
 
           {/* Pagination */}
           {pagination && pagination.pages > 1 && (
-            <div className="flex justify-between items-center px-4 py-3 border-t border-gray-200 dark:border-gray-700">
+            <div className="flex flex-col sm:flex-row justify-between items-center gap-4 px-4 py-3 border-t border-gray-200 dark:border-gray-700">
               <button
                 onClick={() => handlePageChange(pagination.page - 1)}
                 disabled={pagination.page === 1}
-                className="flex items-center gap-1 px-3 py-1 text-sm border border-gray-300 dark:border-gray-700 rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                className="flex items-center gap-1 px-3 py-1 text-sm border border-gray-300 dark:border-gray-700 rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300"
               >
                 <ChevronLeft className="h-4 w-4" />
                 Previous
@@ -228,7 +248,7 @@ const OrdersPage = () => {
               <button
                 onClick={() => handlePageChange(pagination.page + 1)}
                 disabled={pagination.page === pagination.pages}
-                className="flex items-center gap-1 px-3 py-1 text-sm border border-gray-300 dark:border-gray-700 rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                className="flex items-center gap-1 px-3 py-1 text-sm border border-gray-300 dark:border-gray-700 rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300"
               >
                 Next
                 <ChevronRight className="h-4 w-4" />
@@ -241,7 +261,7 @@ const OrdersPage = () => {
       {/* Status Update Modal */}
       {showStatusModal && selectedOrder && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6 border border-gray-200 dark:border-gray-700">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                 Update Order Status
@@ -259,7 +279,7 @@ const OrdersPage = () => {
             <select
               value={newStatus}
               onChange={(e) => setNewStatus(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white mb-4"
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/50 dark:bg-gray-700 dark:text-white transition-all mb-4"
             >
               <option value="pending">Pending</option>
               <option value="processing">Processing</option>
@@ -270,13 +290,13 @@ const OrdersPage = () => {
             <div className="flex gap-3">
               <button
                 onClick={() => setShowStatusModal(false)}
-                className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300"
               >
                 Cancel
               </button>
               <button
                 onClick={handleStatusUpdate}
-                className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                className="flex-1 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition-colors"
               >
                 Update
               </button>
@@ -288,4 +308,4 @@ const OrdersPage = () => {
   );
 };
 
-export default OrdersPage;  // ← ဒါကိုထည့်ပါ
+export default OrdersPage;

@@ -29,6 +29,7 @@ import {
   Clock
 } from 'lucide-react';
 import axios from 'axios';
+import toast from 'react-hot-toast';
 
 // ============================================
 // FORM VALIDATION SCHEMA
@@ -111,7 +112,7 @@ const SellerProductForm = () => {
     },
   });
 
-  // ✅ Watch discount value for display
+  // Watch discount value for display
   const discountValue = watch('discount');
   const priceValue = watch('price');
 
@@ -133,6 +134,7 @@ const SellerProductForm = () => {
 
   useEffect(() => {
     if (isEditMode && id) {
+      console.log('🔍 Loading product with ID:', id);
       dispatch(getProductById(id));
     } else {
       dispatch(clearProduct());
@@ -164,12 +166,10 @@ const SellerProductForm = () => {
       setFormData(data);
       setProductId(product._id);
       
-      // Set discount visibility
       if (product.discount && product.discount > 0) {
         setShowDiscountFields(true);
       }
 
-      // Set form values
       Object.keys(data).forEach((key) => {
         if (key !== 'images' && key !== 'tags' && key !== 'isPublished' && key !== 'isFeatured') {
           setValue(key, data[key]);
@@ -231,7 +231,6 @@ const SellerProductForm = () => {
   const toggleDiscountFields = () => {
     setShowDiscountFields(!showDiscountFields);
     if (!showDiscountFields) {
-      // Reset discount values when hiding
       setFormData((prev) => ({ ...prev, discount: '', discountStartDate: '', discountEndDate: '' }));
       setValue('discount', '');
       setValue('discountStartDate', '');
@@ -282,28 +281,62 @@ const SellerProductForm = () => {
   };
 
   // ============================================
-  // SUBMIT
+  // ✅ ON SUBMIT - With Debug Logs
   // ============================================
 
   const onSubmit = async (data) => {
+    console.log('🟢 1. onSubmit called with data:', data);
+    console.log('🟢 1a. isEditMode:', isEditMode);
+    console.log('🟢 1b. productId:', productId);
+    console.log('🟢 1c. selectedFiles:', selectedFiles?.length || 0);
+    
     setIsSubmitting(true);
     setSaveSuccess(false);
+    
+    const loadingToast = toast.loading(isEditMode ? 'Updating product...' : 'Creating product...');
+    console.log('🟢 2. Loading toast shown');
 
     try {
+      // ✅ Validate required fields
+      if (!data.name || data.name.trim() === '') {
+        toast.error('Product name is required', { id: loadingToast });
+        setIsSubmitting(false);
+        return;
+      }
+      if (!data.description || data.description.trim() === '') {
+        toast.error('Product description is required', { id: loadingToast });
+        setIsSubmitting(false);
+        return;
+      }
+      if (!data.price || data.price <= 0) {
+        toast.error('Please enter a valid price', { id: loadingToast });
+        setIsSubmitting(false);
+        return;
+      }
+      if (data.stock === undefined || data.stock === null || data.stock < 0) {
+        toast.error('Please enter a valid stock quantity', { id: loadingToast });
+        setIsSubmitting(false);
+        return;
+      }
+
+      console.log('🟢 3. Validation passed');
+
       let finalImageUrls = [];
 
-      // ✅ Filter out blob URLs from existing images
+      // Filter out blob URLs from existing images
       const existingValidImages = (formData.images || []).filter(
         (img) => img && typeof img === 'string' && !img.startsWith('blob:') && !img.startsWith('data:')
       );
+      console.log('🟢 4. Existing valid images:', existingValidImages.length);
 
-      // ✅ Upload new images if any
+      // Upload new images if any
       if (selectedFiles && selectedFiles.length > 0) {
-        console.log('📸 Uploading new images to Supabase...');
+        console.log('🟢 5. Uploading new images to Supabase...');
 
         if (isEditMode && productId) {
           const uploadedUrls = await uploadImagesToSupabase(productId, selectedFiles);
           finalImageUrls = [...existingValidImages, ...uploadedUrls];
+          console.log('🟢 6. Uploaded URLs:', finalImageUrls);
         } else {
           // For new products: create product first, then upload images
           const productData = {
@@ -325,7 +358,10 @@ const SellerProductForm = () => {
             seller: user?._id,
           };
 
+          console.log('🟢 7. Creating new product...', productData);
           const result = await dispatch(createProduct(productData)).unwrap();
+          console.log('🟢 8. Create result:', result);
+          
           const newProductId = result?.data?._id;
 
           if (!newProductId) {
@@ -338,6 +374,7 @@ const SellerProductForm = () => {
           finalImageUrls = uploadedUrls;
 
           if (uploadedUrls.length > 0) {
+            console.log('🟢 9. Updating product with images...');
             await dispatch(updateProduct({
               id: newProductId,
               productData: { ...productData, images: uploadedUrls }
@@ -345,6 +382,8 @@ const SellerProductForm = () => {
           }
 
           setSaveSuccess(true);
+          toast.success('Product created successfully! 🎉', { id: loadingToast });
+          
           setTimeout(() => {
             navigate('/seller/products');
           }, 1500);
@@ -354,9 +393,10 @@ const SellerProductForm = () => {
         }
       } else {
         finalImageUrls = existingValidImages;
+        console.log('🟢 10. No new images, using existing:', finalImageUrls.length);
       }
 
-      // ✅ Prepare product data
+      // Prepare product data
       const productData = {
         name: data.name,
         description: data.description,
@@ -376,12 +416,21 @@ const SellerProductForm = () => {
         seller: user?._id,
       };
 
-      // ✅ Create or update product
+      console.log('🟢 11. Submitting product data:', productData);
+
+      // Create or update product
       let result;
       if (isEditMode) {
+        console.log('🟢 12a. Updating product with ID:', id);
         result = await dispatch(updateProduct({ id, productData })).unwrap();
+        console.log('🟢 13a. Update result:', result);
+        toast.success('Product updated successfully! 🎉', { id: loadingToast });
       } else {
+        console.log('🟢 12b. Creating product...');
         result = await dispatch(createProduct(productData)).unwrap();
+        console.log('🟢 13b. Create result:', result);
+        toast.success('Product created successfully! 🎉', { id: loadingToast });
+        
         if (result?.data?._id) {
           setProductId(result.data._id);
         }
@@ -395,11 +444,46 @@ const SellerProductForm = () => {
       }, 1500);
 
     } catch (error) {
-      console.error('❌ Error saving product:', error);
-      alert(error.response?.data?.message || error.message || 'Failed to save product. Please try again.');
+      console.error('🟢 14. ERROR:', error);
+      console.error('🟢 15. Error details:', error.message);
+      console.error('🟢 16. Error stack:', error.stack);
+      toast.error(error.response?.data?.message || error.message || 'Failed to save product', { id: loadingToast });
     } finally {
       setIsSubmitting(false);
+      console.log('🟢 17. Done');
     }
+  };
+
+  // ============================================
+  // ✅ FIXED FORM SUBMIT - Direct call without handleSubmit
+  // ============================================
+
+  const handleFormSubmit = (e) => {
+    e.preventDefault();
+    console.log('🔴 DIRECT FORM SUBMIT TRIGGERED!');
+    
+    // Get form values manually
+    const form = e.target;
+    const formDataObj = new FormData(form);
+    
+    const data = {
+      name: formDataObj.get('name') || '',
+      description: formDataObj.get('description') || '',
+      price: parseFloat(formDataObj.get('price')) || 0,
+      comparePrice: parseFloat(formDataObj.get('comparePrice')) || undefined,
+      stock: parseInt(formDataObj.get('stock')) || 0,
+      brand: formDataObj.get('brand') || '',
+      color: formDataObj.get('color') || '',
+      material: formDataObj.get('material') || '',
+      discount: parseFloat(formDataObj.get('discount')) || 0,
+      discountStartDate: formDataObj.get('discountStartDate') || '',
+      discountEndDate: formDataObj.get('discountEndDate') || '',
+    };
+    
+    console.log('🔴 Form data extracted:', data);
+    
+    // Call onSubmit directly
+    onSubmit(data);
   };
 
   const handleCancel = () => {
@@ -413,7 +497,7 @@ const SellerProductForm = () => {
   if (isLoading && isEditMode) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
+        <Loader2 className="h-8 w-8 animate-spin text-orange-500" />
       </div>
     );
   }
@@ -466,14 +550,14 @@ const SellerProductForm = () => {
         </div>
       )}
 
-      {/* Form */}
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+      {/* ✅ Form with direct submit handler */}
+      <form onSubmit={handleFormSubmit} className="space-y-6">
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 space-y-6">
           
           {/* BASIC INFORMATION */}
           <div className="space-y-4">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-              <Package className="h-5 w-5 text-indigo-600" />
+              <Package className="h-5 w-5 text-orange-500" />
               Basic Information
             </h2>
 
@@ -485,7 +569,7 @@ const SellerProductForm = () => {
                 type="text"
                 {...register('name')}
                 onChange={handleChange}
-                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white ${
+                className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/50 dark:bg-gray-700 dark:text-white transition-all ${
                   errors.name ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
                 }`}
                 placeholder="Enter product name"
@@ -503,7 +587,7 @@ const SellerProductForm = () => {
                 {...register('description')}
                 onChange={handleChange}
                 rows={4}
-                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white ${
+                className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/50 dark:bg-gray-700 dark:text-white transition-all resize-none ${
                   errors.description ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
                 }`}
                 placeholder="Describe your product..."
@@ -517,7 +601,7 @@ const SellerProductForm = () => {
           {/* PRICING & STOCK */}
           <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2 mb-4">
-              <DollarSign className="h-5 w-5 text-indigo-600" />
+              <DollarSign className="h-5 w-5 text-orange-500" />
               Pricing & Stock
             </h2>
 
@@ -532,7 +616,7 @@ const SellerProductForm = () => {
                   min="0"
                   {...register('price', { valueAsNumber: true })}
                   onChange={handleChange}
-                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white ${
+                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/50 dark:bg-gray-700 dark:text-white transition-all ${
                     errors.price ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
                   }`}
                   placeholder="0.00"
@@ -552,7 +636,7 @@ const SellerProductForm = () => {
                   min="0"
                   {...register('comparePrice', { valueAsNumber: true })}
                   onChange={handleChange}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/50 dark:bg-gray-700 dark:text-white transition-all"
                   placeholder="0.00"
                 />
               </div>
@@ -567,7 +651,7 @@ const SellerProductForm = () => {
                   min="0"
                   {...register('stock', { valueAsNumber: true })}
                   onChange={handleChange}
-                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white ${
+                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/50 dark:bg-gray-700 dark:text-white transition-all ${
                     errors.stock ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
                   }`}
                   placeholder="0"
@@ -579,19 +663,17 @@ const SellerProductForm = () => {
             </div>
           </div>
 
-          {/* ==========================================
-              ✅ DISCOUNT SECTION (Seller Controlled)
-              ========================================== */}
+          {/* DISCOUNT SECTION */}
           <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                <Percent className="h-5 w-5 text-indigo-600" />
+                <Percent className="h-5 w-5 text-orange-500" />
                 Product Discount
               </h2>
               <button
                 type="button"
                 onClick={toggleDiscountFields}
-                className="text-sm text-indigo-600 hover:text-indigo-700 dark:text-indigo-400"
+                className="text-sm text-navy-600 hover:text-orange-500 dark:text-navy-400 dark:hover:text-orange-400 transition-colors"
               >
                 {showDiscountFields ? 'Hide Discount' : 'Add Discount'}
               </button>
@@ -607,7 +689,7 @@ const SellerProductForm = () => {
                     <select
                       value={discountType}
                       onChange={(e) => setDiscountType(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/50 dark:bg-gray-700 dark:text-white transition-all"
                     >
                       <option value="percentage">Percentage (%)</option>
                       <option value="fixed">Fixed Amount ($)</option>
@@ -625,7 +707,7 @@ const SellerProductForm = () => {
                       max={discountType === 'percentage' ? 100 : undefined}
                       {...register('discount', { valueAsNumber: true })}
                       onChange={handleChange}
-                      className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white ${
+                      className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/50 dark:bg-gray-700 dark:text-white transition-all ${
                         errors.discount ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
                       }`}
                       placeholder={discountType === 'percentage' ? 'e.g., 20' : 'e.g., 10.00'}
@@ -636,9 +718,8 @@ const SellerProductForm = () => {
                   </div>
                 </div>
 
-                {/* ✅ Show discounted price preview */}
                 {priceValue && discountValue && discountValue > 0 && (
-                  <div className="p-3 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg border border-indigo-200 dark:border-indigo-800">
+                  <div className="p-3 bg-orange-50 dark:bg-orange-900/20 rounded-lg border border-orange-200 dark:border-orange-800">
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm text-gray-600 dark:text-gray-400">
@@ -665,7 +746,7 @@ const SellerProductForm = () => {
                       type="date"
                       {...register('discountStartDate')}
                       onChange={handleChange}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/50 dark:bg-gray-700 dark:text-white transition-all"
                     />
                   </div>
 
@@ -678,7 +759,7 @@ const SellerProductForm = () => {
                       type="date"
                       {...register('discountEndDate')}
                       onChange={handleChange}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/50 dark:bg-gray-700 dark:text-white transition-all"
                     />
                   </div>
                 </div>
@@ -696,7 +777,7 @@ const SellerProductForm = () => {
           {/* IMAGES */}
           <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2 mb-4">
-              <Image className="h-5 w-5 text-indigo-600" />
+              <Image className="h-5 w-5 text-orange-500" />
               Product Images
             </h2>
 
@@ -719,7 +800,7 @@ const SellerProductForm = () => {
           {/* ATTRIBUTES */}
           <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2 mb-4">
-              <Box className="h-5 w-5 text-indigo-600" />
+              <Box className="h-5 w-5 text-orange-500" />
               Attributes
             </h2>
 
@@ -732,7 +813,7 @@ const SellerProductForm = () => {
                   type="text"
                   {...register('brand')}
                   onChange={handleChange}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/50 dark:bg-gray-700 dark:text-white transition-all"
                   placeholder="Enter brand name"
                 />
               </div>
@@ -745,7 +826,7 @@ const SellerProductForm = () => {
                   type="text"
                   {...register('color')}
                   onChange={handleChange}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/50 dark:bg-gray-700 dark:text-white transition-all"
                   placeholder="Enter color"
                 />
               </div>
@@ -758,7 +839,7 @@ const SellerProductForm = () => {
                   type="text"
                   {...register('material')}
                   onChange={handleChange}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/50 dark:bg-gray-700 dark:text-white transition-all"
                   placeholder="Enter material"
                 />
               </div>
@@ -768,7 +849,7 @@ const SellerProductForm = () => {
           {/* TAGS */}
           <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2 mb-4">
-              <List className="h-5 w-5 text-indigo-600" />
+              <List className="h-5 w-5 text-orange-500" />
               Tags
             </h2>
 
@@ -782,13 +863,13 @@ const SellerProductForm = () => {
                   value={tagInput}
                   onChange={(e) => setTagInput(e.target.value)}
                   onKeyPress={handleTagKeyPress}
-                  className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
+                  className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/50 dark:bg-gray-700 dark:text-white transition-all"
                   placeholder="Type a tag and press Enter"
                 />
                 <button
                   type="button"
                   onClick={handleTagAdd}
-                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                  className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition-colors"
                 >
                   Add
                 </button>
@@ -799,7 +880,7 @@ const SellerProductForm = () => {
                   {formData.tags.map((tag) => (
                     <span
                       key={tag}
-                      className="inline-flex items-center gap-1 px-3 py-1 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-800 dark:text-indigo-300 text-sm rounded-full"
+                      className="inline-flex items-center gap-1 px-3 py-1 bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300 text-sm rounded-full"
                     >
                       {tag}
                       <button
@@ -819,7 +900,7 @@ const SellerProductForm = () => {
           {/* PUBLISH STATUS */}
           <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2 mb-4">
-              <CheckCircle className="h-5 w-5 text-indigo-600" />
+              <CheckCircle className="h-5 w-5 text-orange-500" />
               Product Status
             </h2>
 
@@ -831,7 +912,7 @@ const SellerProductForm = () => {
                   onChange={(e) => {
                     setFormData(prev => ({ ...prev, isPublished: e.target.checked }));
                   }}
-                  className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500"
+                  className="w-4 h-4 text-orange-500 focus:ring-orange-500 rounded"
                 />
                 <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
                   Published
@@ -848,7 +929,7 @@ const SellerProductForm = () => {
                   onChange={(e) => {
                     setFormData(prev => ({ ...prev, isFeatured: e.target.checked }));
                   }}
-                  className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500"
+                  className="w-4 h-4 text-orange-500 focus:ring-orange-500 rounded"
                 />
                 <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
                   Featured
@@ -869,14 +950,21 @@ const SellerProductForm = () => {
           <button
             type="button"
             onClick={handleCancel}
-            className="px-6 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+            className="px-6 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300"
           >
             Cancel
           </button>
           <button
             type="submit"
+            onClick={(e) => {
+              console.log('🔵 UPDATE BUTTON CLICKED!');
+              console.log('🔵 isSubmitting:', isSubmitting);
+              console.log('🔵 isLoading:', isLoading);
+              console.log('🔵 isEditMode:', isEditMode);
+              // Don't prevent default - let the form handle it
+            }}
             disabled={isSubmitting || isLoading}
-            className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+            className="px-6 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
           >
             {isSubmitting ? (
               <>

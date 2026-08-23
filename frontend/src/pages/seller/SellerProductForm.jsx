@@ -239,7 +239,7 @@ const SellerProductForm = () => {
   };
 
   // ============================================
-  // UPLOAD IMAGES TO SUPABASE
+  // UPLOAD IMAGES TO SUPABASE (FIXED)
   // ============================================
 
   const uploadImagesToSupabase = async (productIdForUpload, files) => {
@@ -256,13 +256,18 @@ const SellerProductForm = () => {
         throw new Error('You must be logged in to upload images');
       }
 
+      // ✅ Use VITE_API_URL from environment
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      
       const formData = new FormData();
       files.forEach((file) => {
         formData.append('images', file);
       });
 
+      console.log('📡 Sending to:', `${API_URL}/products/${productIdForUpload}/upload-images`);
+
       const response = await axios.post(
-        `/api/products/${productIdForUpload}/upload-images`,
+        `${API_URL}/products/${productIdForUpload}/upload-images`,
         formData,
         {
           headers: {
